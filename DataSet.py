@@ -20,31 +20,19 @@ from multiprocessing import Pool
 from Channel import  Channel
 from Data import Data
 
+
+
 class DataSet(Dataset,Channel):
-    def __init__(self,homeCSV,channels,setTrain=1,setTest=0,setValid=0,ratioSetTrain=0.7,ratioSetTest=0.3,ratioSetValid=0.,readMethod=0,numProcess=10):
-        super(DataSet,self).__init__(homeCSV,channels)
+    def __init__(self,homeCSV,listCSV,labels,numClasses,branch4Train,numProcess=10):
+        self.homeCSV=homeCSV
+        if self.homeCSV.strip()[-1]!='/':
+            self.homeCSV=self.homeCSV+'/'
 
-        assert (((int(setTrain==0)+int(setTest==0)+int(setValid==0))==2) and ((int(setTrain==1)+int(setTest==1)+int(setValid==1))==1)),'Ex.: setTrain=1,setTest=0,setValid=0'
-
-        oData=Data(homeCSV=homeCSV,channels=channels,ratioSetTrain=ratioSetTrain,ratioSetTest=ratioSetTest,ratioSetValid=ratioSetValid)
-
+        self.listCSV=listCSV
+        self.labels=labels
+        self.numClasses=numClasses
+        self.branch4Train=branch4Train
         self.numProcess=numProcess
-
-        if setTrain:
-            self.listCSV=oData.GetListCSV4Train()
-
-        if setTest:
-            self.listCSV=oData.GetListCSV4Test()
-
-        if setValid:
-            self.listCSV=oData.GetListCSV4Valid()
-
-        self.labels=oData.GetLabels()
-
-        self.numClasses=oData.GetNumClasses()
-        self.branch4Train= oData.GetBranch4Train()
-
-
 
 
         self.branch4Train.sort()
@@ -52,18 +40,11 @@ class DataSet(Dataset,Channel):
         self.data=pd.DataFrame(columns=self.branch4Train)
         self.label=np.array([])
 
-        self.readMethod=readMethod
-
-
         self.Label2Data()
 
         self.branchSel={}
 
-
-
-
         self.ReadCSV()
-
 
     def Label2Data(self):
         label2Channel={}
@@ -101,15 +82,9 @@ class DataSet(Dataset,Channel):
     def __getitem__(self,idx):
 
         iData=self.data.iloc[idx][self.branch4Train[::]].values
-        # iData.resize((1,17,17))
 
         iLabel=self.label[idx]
 
-        # iData=torch.from_numpy(iData).float()
-        # iLabel=torch.from_numpy(np.array(iLabel)).long()  #.astype(np.long)
-
-        print(iData.shape,iLabel.shape)
-        print(type(iData),type(iLabel))
 
         data=(iData,iLabel)
 
@@ -159,33 +134,32 @@ class DataSet(Dataset,Channel):
 
 
 
-
-
 if __name__=='__main__':
-    homeCSV =   '/home/i/iWork/data/csv'
-    channels  =None
-    setTrain=1
-    setTest=0
-    setValid=0
-    ratioSetTrain=0.7
-    ratioSetTest=0.3
-    ratioSetValid=0.
-    readMethod=0
+    homeCSV='/home/i/iWork/data/csv'
     numProcess=10
-    oDataSet=DataSet(homeCSV=homeCSV,
-                     channels=channels,
-                     setTrain=setTrain,
-                     setTest=setTest,
-                     setValid=setValid,
-                     ratioSetTrain=ratioSetTrain,
-                     ratioSetTest=ratioSetTest,
-                     ratioSetValid=ratioSetValid,
-                     readMethod=readMethod,
-                     numProcess=numProcess)
+
+    oData=Data(homeCSV,channels=None,ratioSetTrain=0.7,ratioSetTest=0.3,ratioSetValid=0.)
+
+    listCSV4Test=oData.GetListCSV4Test()
+    listCSV4Valid=oData.GetListCSV4Valid()
+    listCSV4Train=oData.GetListCSV4Train()
 
 
-# trainloader = torch.utils.data.DataLoader(trainset, batch_size=4,
-#                                           shuffle=True, num_workers=2)
+    labels=oData.GetLabels()
+    numClasses=oData.GetNumClasses()
+    branch4Train=oData.GetBranch4Train()
+
+    setTrain=DataSet(homeCSV,listCSV=listCSV4Train,labels=labels,numClasses=numClasses,branch4Train=branch4Train,numProcess=numProcess)
+
+    import torch
+    trainLoader = torch.utils.data.DataLoader(setTrain, batch_size=4,
+                                          shuffle=True, num_workers=1)
+
+    dataiter = iter(trainLoader)
+    iData, iLabel = dataiter.next()
+
+    print(iData),print(iLabel)
+    print(iData.shape,iLabel.shape)
 
 
 #
