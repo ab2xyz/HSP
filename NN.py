@@ -39,7 +39,7 @@ class NN(nn.Module):
         x =self.bn4( F.relu(self.conv4(x)))
         x =self.bn5( F.relu(self.conv5(x)))
         x =self.bn6(F.relu(self.conv6(x)))
-        x = F.relu(self.conv7(x))
+        x = self.conv7(x)
 
         x=x.view(-1,self.numClasses)
 
@@ -52,7 +52,7 @@ if __name__=='__main__':
     oNN=NN(numClasses)
 
     import torch
-    xIn=torch.randn(1,1,17,17)
+    xIn=torch.randn(4,1,17,17)
 
     xOut=oNN(xIn)
 

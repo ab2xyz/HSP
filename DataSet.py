@@ -46,6 +46,7 @@ class DataSet(Dataset,Channel):
         self.dictNumEventChannel=dict(zip(range(self.numClasses),np.zeros(self.numClasses)))
 
         self.counterRead=0
+        self.probPositive=self.numClasses
 
         self.Label2Data()
 
@@ -159,11 +160,19 @@ class DataSet(Dataset,Channel):
 
 
     def Prob(self):
-        numEventChannelAveNext=np.sum(list(self.dictNumEventChannel.values()))/self.numClasses/self.counterRead*(self.counterRead+1)
+        numEventChannelAveNext=np.sum(list(self.dictNumEventChannel.values()))/self.probPositive*(self.counterRead+1)
 
         for key in self.dictNumEventChannel:
             if self.dictNumEventChannel[key]>numEventChannelAveNext:
                 self.prob[key]=0
+            else:
+                self.probPositive+=1
+                self.prob[key]=1
+
+
+        with open(self.homeCSV+'probLog','w') as f:
+            [f.writelines('%d :%.1f \n'%(i, self.dictNumEventChannel[i]/numEventChannelAveNext/self.counterRead*(self.counterRead+1))) for i in self.dictNumEventChannel]
+
 
     def ReadSet(self):
         self.Prob()
@@ -207,8 +216,8 @@ class DataSet(Dataset,Channel):
                 data=np.concatenate((self.data,data),axis=0)
                 label=np.concatenate((self.label,label),axis=0)
 
-            self.data=data[-numItemKept:,:]
-            self.label=label[-numItemKept:]
+            self.data=data[-int(numItemKept):,:]
+            self.label=label[-int(numItemKept):]
 
 
 

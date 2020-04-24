@@ -7,18 +7,25 @@ import torchvision
 import torchvision.transforms as transforms
 import torch.optim as optim
 import torch.nn as nn
+from tqdm import  tqdm
+import matplotlib.pyplot as plt
+
+
 
 
 class Train():
-    def __init__(self,NN,setTrain,setTest,setValid=None,xShape=(17,17), batchSize=32,numProcessor=6,criterion = nn.CrossEntropyLoss(),optimizer = optim.Adam):
+    def __init__(self,NN,setTrain,setTest,setValid=None,xShape=(17,17), batchSize=32,numProcessor=6,criterion = nn.CrossEntropyLoss(),optimizer = optim.Adam,cuda=True):
         self.NN=NN
         self.setTrain=setTrain
         self.setTest=setTest
         self.setValid=setValid
         self.criterion=criterion
         self.optimizer=optimizer
-        print(self.NN)
         self.opti=self.optimizer(self.NN.parameters())
+
+        self.cuda=cuda
+        if self.cuda:
+            self.NN.cuda()
 
         self.batchSize=batchSize
         self.numProcessor=numProcessor
@@ -27,31 +34,32 @@ class Train():
 
 
 
+    def Train(self,numEpoch,pathSaveNN='../NN.state_dict'):
 
-    def Resize(self,x,shape,dtype=torch.float):
-        numX=np.prod(shape)
-
-        x_=torch.zeros(numX,dtype=dtype)
-        x_[:len(x)]=x
-        x=x_.resize_(shape)
-        return x
-
-    def Train(self,numEpoch):
-        for epoch in range(numEpoch):
+        lossRecTrain=[]
+        lossRecTest=[]
+        for epoch in tqdm(range(numEpoch)):
 
             loaderTrain = torch.utils.data.DataLoader(self.setTrain, batch_size=batchSize,  shuffle=True, num_workers=self.numProcessor)
-            loaderTest = torch.utils.data.DataLoader(self.setTest, batch_size=batchSize,  shuffle=True, num_workers=self.numProcessor)
 
             self.setTrain.ReadSet()
 
-
+            self.NN.train()
             lossTrain=0.
             for i, data in enumerate(loaderTrain,0):
                 inputs, labels = data
-                inputs=self.Resize(inputs,self.xShape,dtype=torch.float)
 
-                optimizer.zero_grad()
+                inputs=inputs.float()
+                labels=labels.long()
+
+                if self.cuda:
+                    inputs=inputs.cuda()
+                    labels=labels.cuda()
+
+                self.opti.zero_grad()
                 outputs = self.NN(inputs)
+
+
                 loss = self.criterion(outputs, labels)
                 loss.backward()
                 self.opti.step()
@@ -61,6 +69,57 @@ class Train():
                 if i%200==199:
                     print(lossTrain/200.)
                     lossTrain=0.
+
+                # print(lossTrain/(i+1))
+            lossRecTrain.append(lossTrain/(i+1))
+
+            self.setTrain.ReadGet(numItemKept=1e8)
+
+
+
+            ##
+            self.NN.eval()
+
+
+            loaderTest = torch.utils.data.DataLoader(self.setTest, batch_size=batchSize,  shuffle=False, num_workers=self.numProcessor)
+
+            self.setTest.ReadSet()
+
+            lossTest=0.
+            for i, data in enumerate(loaderTest,0):
+                inputs, labels = data
+
+                inputs=inputs.float()
+                labels=labels.long()
+
+                if self.cuda:
+                    inputs=inputs.cuda()
+                    labels=labels.cuda()
+
+                outputs = self.NN(inputs)
+
+                loss = self.criterion(outputs, labels)
+
+                lossTest+=loss.item()
+
+                # print(lossTest/(i+1))
+
+
+            lossRecTest.append(lossTest/(i+1))
+
+            self.setTest.ReadGet(numItemKept=0)
+
+
+            torch.save(self.NN.state_dict(), pathSaveNN)
+
+            plt.figure('loss')
+            plt.clf()
+            plt.plot(np.log(lossRecTrain),'g',label='train')
+            plt.plot(np.log(lossRecTest),'r',label='test')
+            plt.grid()
+            plt.legend(loc='best')
+            plt.pause(0.01)
+
 
 
 
@@ -83,9 +142,10 @@ if __name__=='__main__':
     labels=oData.GetLabels()
     numClasses=oData.GetNumClasses()
     branch4Train=oData.GetBranch4Train()
+    resize=(1,17,17)
 
-    setTrain=DataSet(homeCSV,listCSV=listCSV4Train,labels=labels,numClasses=numClasses,branch4Train=branch4Train,numProcess=numProcess)
-    setTest=DataSet(homeCSV,listCSV=listCSV4Test,labels=labels,numClasses=numClasses,branch4Train=branch4Train,numProcess=numProcess)
+    setTrain=DataSet(homeCSV,listCSV=listCSV4Train,labels=labels,numClasses=numClasses,branch4Train=branch4Train,resize=resize,numProcess=numProcess)
+    setTest=DataSet(homeCSV,listCSV=listCSV4Test,labels=labels,numClasses=numClasses,branch4Train=branch4Train,resize=resize,numProcess=numProcess)
 
 
     numEpoch=100
@@ -93,10 +153,11 @@ if __name__=='__main__':
     Net=NN()
     setValid=None
     xShape=(17,17)
-    batchSize=32
+    batchSize=1024*4
     numProcessor=6
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam
+    cuda=True
 
     oTrain=Train(NN=Net,
                  setTrain=setTrain,
@@ -106,30 +167,12 @@ if __name__=='__main__':
                  batchSize=batchSize,
                  numProcessor=numProcessor,
                  criterion = criterion,
-                 optimizer = optimizer)
+                 optimizer = optimizer,
+                 cuda=cuda)
 
-    oTrain.Train(numEpoch=numEpoch)
-
-
-
-
-
-
-    # loaderTrain = torch.utils.data.DataLoader(setTrain, batch_size=32,
-    #                                       shuffle=True, num_workers=10)
-    #
-    # loaderTest = torch.utils.data.DataLoader(setTest, batch_size=32,
-    #                                       shuffle=True, num_workers=10)
-    #
-    # dataiter = iter(loaderTrain)
-    # iData, iLabel = dataiter.next()
-    # print(iData.shape,iLabel.shape)
-    #
-
-
-
-
-
+    import datetime
+    pathSaveNN='/home/i/IGSI/data/res/NN_%s.state_dict'%(datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+    oTrain.Train(numEpoch=numEpoch,pathSaveNN=pathSaveNN)
 
 
 
