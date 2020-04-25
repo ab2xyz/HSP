@@ -32,6 +32,8 @@ class DataSet(Dataset,Channel):
         self.labels=labels
         self.numClasses=numClasses
         self.branch4Train=branch4Train
+        self.branch4Train.sort()
+
         self.numProcess=numProcess
 
         self.resize=resize
@@ -84,6 +86,7 @@ class DataSet(Dataset,Channel):
                 [f.writelines(z+'\n') for z in y]
                 f.writelines('='*80+'\n'*2)
 
+
     def Resize(self,x):
         return np.resize(x,self.resize)
 
@@ -131,11 +134,11 @@ class DataSet(Dataset,Channel):
 
     def ReadCSV_OneFile(self,iClass,q=None):
 
+        iCSV=choice(self.label2CSV[iClass])
+
         data=pd.DataFrame(columns=self.branch4Train)
         label=np.array([])
 
-
-        iCSV=choice(self.label2CSV[iClass])
 
         iChannel=iCSV.split('/')[-2]
         if iChannel in self.branchSel:
@@ -143,6 +146,7 @@ class DataSet(Dataset,Channel):
         else:
             branchAll=pd.read_csv(iCSV,nrows=0).columns.tolist()
             iBranchSel=list(set(branchAll).intersection(set(self.branch4Train)))
+            iBranchSel.sort()
             self.branchSel[iChannel]=iBranchSel
 
 
@@ -213,12 +217,14 @@ class DataSet(Dataset,Channel):
         else:
 
             if data.shape[0]<numItemKept:
-                data=np.concatenate((self.data,data),axis=0)
-                label=np.concatenate((self.label,label),axis=0)
+                # data=np.concatenate((self.data,data),axis=0)
+                # label=np.concatenate((self.label,label),axis=0)
+
+                data=np.r_[self.data,data]
+                label=np.r_[self.label,label]
 
             self.data=data[-int(numItemKept):,:]
             self.label=label[-int(numItemKept):]
-
 
 
 
@@ -239,7 +245,6 @@ if __name__=='__main__':
     resize=(1,17,17)
 
     setTrain=DataSet(homeCSV,listCSV=listCSV4Train,labels=labels,numClasses=numClasses,branch4Train=branch4Train,resize=resize,numProcess=numProcess)
-
 
     setTrain.ReadSet()
 

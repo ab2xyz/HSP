@@ -13,16 +13,29 @@ class Channel():
 
 
         def Channel(self,home,channels):
-            # channels
-            if channels is None:
-                channels=[x for x in os.listdir(home) if os.path.isdir(home+x)]
+            # # channels
+            # if channels is None:
+            #     channels=[x for x in os.listdir(home) if os.path.isdir(home+x)]
+            #
+            # else:
+            #     if isinstance(channels,list):
+            #         channels=channels
+            #         channels.sort()
+            #     else:
+            #         channels=[channels]
+
+
+            if isinstance(channels,list):
+                channels=channels
 
             else:
-                if isinstance(channels,list):
-                    channels=channels
-                    channels.sort()
+                if channels is None:
+                    channels=[x for x in os.listdir(home) if os.path.isdir(home+x)]
                 else:
-                    channels=[channels]
+
+                    channels=[x for x in os.listdir(home) if os.path.isdir(home+x) and channels in x]
+
+
 
             channels.sort()
 
@@ -35,9 +48,10 @@ class Channel():
 
 
 if __name__=='__main__':
-    homeCSV='/home/i/IGSI/data/csv'
+    homeCSV='/home/i/iWork/data/csv'
     # channels=['T09_T05_55_D0', 'T09_T06_55_Dch', 'T09_T07_55_Ds', 'T09_T08_55_Lam', 'T09_T09_55_Lamc']
-    channels=None
+    # channels=None
+    channels='45'
     oChannel=Channel(homeCSV=homeCSV,channels=channels)
     oChannel.GetChannel()
 

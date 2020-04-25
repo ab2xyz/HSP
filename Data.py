@@ -269,11 +269,34 @@ class Data(Channel):
         return self.branch4Train
 
 
+    def Write(self,homeRes):
+        import datetime
+        import json
+
+        if homeRes.strip()[-1]!='/':
+            homeRes=homeRes+'/'
+
+        codeSave=datetime.datetime.now().strftime('_%Y%m%d_%H%M%S')
+
+        jsonName=homeRes+'data'+codeSave+'.json'
+        dataDict={'listCSV4Test':self.listCSV4Test,'listCSV4Valid':self.listCSV4Valid,'listCSV4Train':self.listCSV4Train,'labels':self.labels,'numClasses':self.numClasses,'branch4Train':self.branch4Train}
+
+        with open(jsonName, 'w') as f:
+            json.dump(dataDict,f)
+
+        return codeSave
+
+
+
 if __name__=='__main__':
 
     homeCSV='/home/i/iWork/data/csv'
 
     oData=Data(homeCSV,channels=None,ratioSetTrain=0.7,ratioSetTest=0.3,ratioSetValid=0.)
+
+    homeRes='/home/i/iWork/data/res'
+    codeSave=oData.Write(homeRes=homeRes)
+    print(codeSave)
 
 
     print('listCSV4Test')
@@ -293,7 +316,13 @@ if __name__=='__main__':
     print(oData.GetBranch4Train())
 
 
+    ########
 
+
+    print('-'*80+'\n')
+    print(len(oData.GetLabels()),len(oData.GetListCSV4Test()))
+    print(oData.GetListCSV4Test())
+    print(oData.GetLabels())
 
 
 #
