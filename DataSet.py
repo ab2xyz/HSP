@@ -132,9 +132,11 @@ class DataSet(Dataset,Channel):
         self.counterRead+=1
 
 
-    def ReadCSV_OneFile(self,iClass,q=None):
+    def ReadCSV_OneFile(self,iClass, q=None, iCSV=None):
 
-        iCSV=choice(self.label2CSV[iClass])
+        if iCSV is None:
+            iCSV=choice(self.label2CSV[iClass])
+
 
         data=pd.DataFrame(columns=self.branch4Train)
         label=np.array([])
@@ -225,6 +227,11 @@ class DataSet(Dataset,Channel):
 
             self.data=data[-int(numItemKept):,:]
             self.label=label[-int(numItemKept):]
+
+
+    def SetDataLabel(self,data,label):
+        self.data=data
+        self.label=label
 
 
 

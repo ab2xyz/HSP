@@ -117,6 +117,9 @@ class Train():
             homeRes=homeRes if homeRes.strip()[-1]=='/' else homeRes+'/'
             pathSaveNN=homeRes+'NN'+codeSave+'.plt'
             torch.save(self.NN.state_dict(), pathSaveNN)
+            pathSaveResize=homeRes+'Resize'+codeSave+'.dat'
+            with open(pathSaveResize,'w') as f:
+                [f.writelines('%d '%x) for x in setTrain.resize]
 
             plt.figure('loss',figsize=(14,8))
             plt.clf()
@@ -147,7 +150,7 @@ if __name__=='__main__':
     homeRes='/home/i/iWork/data/res'
     numProcess=10
     channels='45'
-    channels=['T06_T06_45_Dch','T06_DPM_45']
+    # channels=['T06_T06_45_Dch','T06_DPM_45']
 
     oData=Data(homeCSV,channels=channels,ratioSetTrain=0.7,ratioSetTest=0.3,ratioSetValid=0.)
 
@@ -163,7 +166,7 @@ if __name__=='__main__':
     numClasses=oData.GetNumClasses()
     print(numClasses)
     branch4Train=oData.GetBranch4Train()
-    resize=(240)
+    resize=[240]
 
 
     setTrain=DataSet(homeCSV,listCSV=listCSV4Train,labels=labels,numClasses=numClasses,branch4Train=branch4Train,resize=resize,numProcess=numProcess)

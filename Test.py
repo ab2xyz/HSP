@@ -11,12 +11,13 @@ import torch.nn as nn
 from tqdm import  tqdm
 import matplotlib.pyplot as plt
 import json
+from DataSet import DataSet
 
 
 
 
 class Test():
-    def __init__(self,homeCSV,homeRes,NN,codeSave,numFilesCut=20,resize=[240]):
+    def __init__(self,homeCSV,homeRes,NN,codeSave,numFilesCut=20, batchSize=1024, numProcessor=1, cuda=True):
 
         self.homeCSV=homeCSV if homeCSV.strip()[-1]=='/' else homeCSV+'/'
         self.homeRes=homeRes if homeRes.strip()[-1]=='/' else homeRes+'/'
@@ -24,9 +25,10 @@ class Test():
         self.codeSave=codeSave
 
         self.numFilesCut=int(numFilesCut)
-        # self.batchSize=batchSize
 
-        self.resize=resize
+        self.batchSize=batchSize
+        self.numProcessor=numProcessor
+        self.cuda=cuda
 
 
         jsonName=self.homeRes+'data'+self.codeSave+'.json'
@@ -48,23 +50,22 @@ class Test():
         nnDictName=self.homeRes+'NN'+self.codeSave+'.plt'
         self.NN.load_state_dict(torch.load(nnDictName))
 
+        if self.cuda:
+            self.NN=self.NN.cuda()
+
+        resizeName=self.homeRes+'Resize'+codeSave+'.dat'
+        self.resize=np.loadtxt(resizeName).astype(int)
+
+
         self.NN.eval()
 
         self.softmax=torch.nn.Softmax(dim=1)
 
 
-        ##
-        numChannel=500
-        self.labelsBK=self.labels
-        self.labels={}
-        counterChannel=0
-        for idx in self.labelsBK:
-            counterChannel+=1
-            if counterChannel>numChannel:
-                continue
-            self.labels[idx]= self.labelsBK[idx]
+        self.setTest={}
+        self.loaderTest={}
 
-        #
+
 
         self.ReadCSV()
 
@@ -75,12 +76,9 @@ class Test():
 
 
     def ReadCSV(self):
-        self.data={}
-        self.label={}
-        self.branchSel={}
 
         for iChannel in tqdm(self.labels):
-
+            self.setTest[iChannel]=DataSet(homeCSV=self.homeCSV,listCSV=self.listCSV4Test,labels=self.labels,numClasses=self.numClasses,branch4Train=self.branch4Train,resize=self.resize,numProcess=self.numProcessor)
 
             data=None
             label=None
@@ -91,61 +89,81 @@ class Test():
                 if (self.numFilesCut>0) and (counterCSV>self.numFilesCut):
                     continue
 
-                if not iChannel in self.branchSel:
-                    branchAll=pd.read_csv(self.homeCSV+iChannel+'/'+iCSV,nrows=0).columns.tolist()
-                    iBranchSel=list(set(branchAll).intersection(set(self.branch4Train)))
-                    iBranchSel.sort()
-                    self.branchSel[iChannel]=iBranchSel
-
-                iData=pd.read_csv(self.homeCSV+iChannel+'/'+iCSV,usecols=iBranchSel).values
-
+                iReadCSV=self.homeCSV+iChannel+'/'+iCSV
+                iReadClass=self.labels[iChannel]
+                iData,iLabel,iClass=self.setTest[iChannel].ReadCSV_OneFile(iClass=iReadClass, iCSV=iReadCSV)
 
                 if data is None:
                     data=iData
+                    label=iLabel
                 else:
                     data=np.r_[data,iData]
+                    label=np.r_[label,iLabel]
 
-            label=np.ones((data.shape[0]),dtype=np.long)*self.labels[iChannel]
 
-            numData=np.prod(self.resize)
-            dataZeros=np.zeros((data.shape[0],numData-data.shape[1]))
-            data=np.c_[data,dataZeros]
+            self.setTest[iChannel].SetDataLabel(data=data,label=label)
+            self.loaderTest[iChannel]=torch.utils.data.DataLoader(self.setTest[iChannel], batch_size=self.batchSize,  shuffle=False, num_workers=self.numProcessor)
 
-            dataShape=[data.shape[0]]
-            dataShape.extend(self.resize)
-            data=np.resize(data,dataShape)
 
-            self.data[iChannel]=data
-            self.label[iChannel]=label
+
+
+
 
 
 
     def Test(self):
+
         for iChannel in tqdm(self.labels):
-            inputs=self.data[iChannel]
+            loader=self.loaderTest[iChannel]
+
+            lossTest=0.
+            for i, data in enumerate(loader,0):
+                inputs, labels = data
+
+                if inputs.shape[0]==1:
+                    continue
+
+                inputs=inputs.float()
+                labels=labels.long()
+
+                if self.cuda:
+                    inputs=inputs.cuda()
+                    labels=labels.cuda()
+
+                outputs = self.NN(inputs)
 
 
-            inputs=torch.from_numpy(inputs).float()
-            outputs=self.softmax(self.NN(inputs))
+                if i==0:
+                    outputsMean=self.softmax(outputs).mean(dim=0)
+                    print('\n',labels[0],outputsMean,iChannel)
 
-            outputsMean=outputs.mean(dim=0)
 
-            print('\n')
-            print(self.label[iChannel][0])
-            print(outputsMean)
+
 
 
 
 
 if __name__=='__main__':
-    from DNN import NN
-    codeSave='_20200425_163022'
+    import time
+
     homeCSV='/home/i/iWork/data/csv'
     homeRes='/home/i/iWork/data/res'
-    resize=[240]
+    from DNN import NN
+    codeSave='_20200425_185354'
 
-    oTest=Test(homeCSV=homeCSV,homeRes=homeRes,NN=NN,codeSave=codeSave,numFilesCut=1,resize=resize)
-    oTest.Test()
+    numFilesCut=2
+    batchSize=1024
+    numProcessor=1
+    cuda=True
+
+
+    oTest=Test(homeCSV=homeCSV,homeRes=homeRes,NN=NN,codeSave=codeSave,numFilesCut=numFilesCut, batchSize=batchSize, numProcessor=numProcessor, cuda=cuda)
+
+    for iTime in range(10000):
+        oTest.Test()
+        print('\n'+'-'*80+'\n')
+        time.sleep(200)
+
 
 
 
