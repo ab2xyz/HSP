@@ -180,21 +180,21 @@ class Test():
 
                 if self.cuda:
                     inputs=inputs.cuda()
+                    labels=labels.cuda()
+                    uids=uids.cuda()
 
                 outputs = self.NN(inputs)
 
                 softmaxOutputs=self.softmax(outputs)
 
-                if self.cuda:
-                    softmaxOutputs=softmaxOutputs.cpu()
-                softmaxOutputsNumpy=softmaxOutputs.detach().numpy()
 
-                iOutputNN=np.c_[softmaxOutputsNumpy,labels,uids]
+                print(softmaxOutputs.shape,labels.shape,uids.shape)
+                iOutputNN=torch.concat([softmaxOutputs,labels,uids],dim=0)
 
                 if outputNN is None:
                     outputNN=iOutputNN
                 else:
-                    outputNN=np.r_[outputNN,iOutputNN]
+                    outputNN=torch.concat([outputNN,iOutputNN],dim=1)
 
 
 
@@ -298,29 +298,48 @@ class Test():
                     continue
 
                 inputs=inputs.float()
+                labels=torch.unsqueeze(labels,1)
+                labels=labels.float()
+                uids=uids.float()
 
                 if self.cuda:
                     inputs=inputs.cuda()
+                    labels=labels.cuda()
+                    uids=uids.cuda()
 
                 outputs = self.NN(inputs)
 
                 softmaxOutputs=self.softmax(outputs)
 
-                if self.cuda:
-                    softmaxOutputs=softmaxOutputs.cpu()
-                softmaxOutputsNumpy=softmaxOutputs.detach().numpy()
 
-                iOutputNN=np.c_[softmaxOutputsNumpy,labels,uids]
+                print(softmaxOutputs.shape,labels.shape,uids.shape)
+
+                iOutputNN=torch.cat([softmaxOutputs,labels,uids],dim=1)
 
                 if outputNN is None:
                     outputNN=iOutputNN
                 else:
-                    outputNN=np.r_[outputNN,iOutputNN]
+                    outputNN=torch.cat([outputNN,iOutputNN],dim=0)
 
+
+
+        print(outputNN)
+        print(outputNN.shape)
+        print(type(outputNN))
 
 
         lb=np.zeros(len(idSig))+1e-8
         ub=np.ones(len(idSig))-1e-8
+
+
+        cuts=[0.5,0.5,0.5,0.5]
+
+        self.FuncCuts(cuts, outputNN=outputNN,   idBkg=idBkg, idSig=idSig,effi=effi)
+
+
+
+
+        ##
 
         popuMemo, popuMemoMarks,popuRecommand=self.PSOND(self.FuncCuts,lb,ub, swarmsize=200,maxiter=100, memorysize=1000,pltShow=True, outputNN=outputNN,idBkg=idBkg,idSig=idSig,effi=effi)
 
@@ -363,7 +382,7 @@ class Test():
                 bkgIdx=bkgIdx +iBkgIdx
 
         bkgItem=outputNN[bkgIdx,-1]     # All the  items of bkg
-        bkgUid=np.unique(bkgItem)     # The uid of bkg
+        bkgUid=torch.unique(bkgItem)     # The uid of bkg
         bkgNum=bkgUid.shape[0]       # The number of bkg
 
 
@@ -389,7 +408,8 @@ class Test():
         #
 
 
-        sigIdxUid=sigIdx.astype(int)*outputNN[:,-1]
+
+        sigIdxUid=sigIdx.float()*outputNN[:,-1]
 
         bkgUidTrue=np.setdiff1d(bkgUid,sigIdxUid)
 
@@ -397,8 +417,7 @@ class Test():
 
         bkgEff=float(bkgTrueNum)/float(bkgNum)-1e-15
 
-        # effiErrBkg=np.log((1.-effi+1e-9)/(1.-bkgEff+1e-9))**2
-        effiErrBkg=np.log((1.-effi)/(1.-bkgEff))
+        effiErrBkg=np.log((1.-effi)/(1.-bkgEff))**2
 
 
         cutsNorm=np.linalg.norm(cuts,ord=2)
@@ -548,28 +567,16 @@ class Test():
                 plt.figure('Fit')
                 plt.clf()
                 plt.plot(popuMemoMarks[:numMemo,0],popuMemoMarks[:numMemo,1],'.')
-                # iMean=popuMemoMarks[:numMemo,:].mean(axis=0)
-                # iStd=  popuMemoMarks[:numMemo,:].std(axis=0)
-                # xlim=(max(0,(iMean[0]-3*iStd[0]),iMean[0]+3*iStd[0]))
-                # ylim=(max(0,(iMean[1]-3*iStd[1]),iMean[1]+3*iStd[1]))
-                # print(iMean,iStd,xlim,ylim)
 
                 plt.grid()
                 plt.title(numMemo)
                 plt.pause(0.01)
-                # plt.show()
+
 
 
 
         if 'popuRecommand' not in locals():
-            # popuMemoMarksInt=((popuMemoMarks[:numMemo,:]-popuMemoMarks[:numMemo,:].min(axis=0))/((popuMemoMarks[:numMemo,:].max(axis=0)-popuMemoMarks[:numMemo,:].min(axis=0))/(int(memorysize**0.5)))).astype(int)
-            #
-            # popuMemoMarksIntValue,popuMemoMarksIntCount=np.unique(popuMemoMarksInt, axis=0,return_counts=True)
-            # popuMemoMarksIntCountArgMax=np.argmax(popuMemoMarksIntCount)
-            # idxPopuRecommandList=np.where((popuMemoMarksInt==popuMemoMarksIntValue[popuMemoMarksIntCountArgMax]).all(axis=1))[0]
-            # idxPopuRecommand=idxPopuRecommandList[0] if len(idxPopuRecommandList)>0 else idxPopuRecommandList
-            #
-            # popuRecommand=popuMemo[idxPopuRecommand,:-(numTarget+3)]
+
 
             popuRecommand=popuMemo[np.argmin(np.linalg.norm(popuMemoMarks[:numMemo,:],axis=1,ord=2)),:-(numTarget+3)]
 
@@ -590,9 +597,9 @@ if __name__=='__main__':
     homeCSV='/home/i/iWork/data/csv'
     homeRes='/home/i/iWork/data/res'
     from DNN import NN
-    codeSave='_20200427_000231'
+    codeSave='_20200426_200040'
 
-    numFilesCut=20
+    numFilesCut=2
     batchSize=1024*16
     numProcessor=1
     cuda=True
@@ -603,13 +610,13 @@ if __name__=='__main__':
     # oTest.Test()
     # oTest.TestMean()
 
-    for iTime in range(10000):
-        oTest.Test(effi)
-        print('\n'+'-'*80+'\n')
-        time.sleep(200)
+    # for iTime in range(10000):
+    #     oTest.Test(effi)
+    #     print('\n'+'-'*80+'\n')
+    #     time.sleep(200)
 
 
-    # oTest.GetCuts()
+    oTest.GetCuts()
 
 
     plt.show()

@@ -47,7 +47,7 @@ class Train():
             self.NN.train()
             lossTrain=0.
             for i, data in enumerate(loaderTrain,0):
-                inputs, labels = data
+                inputs, labels, uids= data
 
                 if inputs.shape[0]==1:
                     continue
@@ -86,7 +86,7 @@ class Train():
 
             lossTest=0.
             for i, data in enumerate(loaderTest,0):
-                inputs, labels = data
+                inputs, labels,uids = data
                 if inputs.shape[0]==1:
                     continue
 
@@ -150,7 +150,7 @@ if __name__=='__main__':
     homeRes='/home/i/iWork/data/res'
     numProcess=10
     channels='45'
-    # channels=['T06_T06_45_Dch','T06_DPM_45']
+    # channels=['T06_T06_45_Dch','T06_DPM_45','T06_T05_45_D0']
 
     oData=Data(homeCSV,channels=channels,ratioSetTrain=0.7,ratioSetTest=0.3,ratioSetValid=0.)
 
@@ -177,7 +177,7 @@ if __name__=='__main__':
     from DNN import NN
     Net=NN(numClasses)
     setValid=None
-    batchSize=1024*4
+    batchSize=1024*16
     numProcessor=6
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam

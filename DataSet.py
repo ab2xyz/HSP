@@ -101,9 +101,10 @@ class DataSet(Dataset,Channel):
         iData=self.Resize(iData)
 
         iLabel=self.label[idx]
+        iUid=self.uid[idx]
 
 
-        data=(iData,iLabel)
+        data=(iData,iLabel,iUid)
 
         return data
 
@@ -116,11 +117,13 @@ class DataSet(Dataset,Channel):
         data_label=pool.map(self.ReadCSV_OneFile, range(self.numClasses), chunksize=1)
         dataList=[x[0] for x in data_label]
         labelList=[x[1] for x in data_label]
-        classList=[x[2] for x in data_label]
+        uidList=[x[2] for x in data_label]
+        classList=[x[3] for x in data_label]
 
         # self.data=pd.concat((dataList),sort=True)
         self.data=np.concatenate(dataList,axis=0)
         self.label=np.concatenate(labelList,axis=0)
+        self.uid=np.concatenate(uidList,axis=0)
 
         pool.close()
 
@@ -140,6 +143,7 @@ class DataSet(Dataset,Channel):
 
         data=pd.DataFrame(columns=self.branch4Train)
         label=np.array([])
+        uid=pd.DataFrame(columns=['uid'])
 
 
         iChannel=iCSV.split('/')[-2]
@@ -154,15 +158,17 @@ class DataSet(Dataset,Channel):
 
         iData=pd.read_csv(iCSV,usecols=iBranchSel)
         iLabel=np.ones((iData.shape[0]),dtype=np.long)*iClass
+        iUid=pd.read_csv(iCSV,usecols=['uid'])
 
         iData=pd.concat((data,iData),sort=True).fillna(0).values
         iLabel=np.r_[label,iLabel]
+        iUid=pd.concat((uid,iUid),sort=True).fillna(0).values
 
         if q is None:
-            return (iData,iLabel,iClass)
+            return (iData,iLabel,iUid, iClass)
 
         else:
-            q.put([iData,iLabel,iClass])
+            q.put([iData,iLabel,iUid, iClass])
 
 
     def Prob(self):
@@ -196,25 +202,29 @@ class DataSet(Dataset,Channel):
 
         dataList=[]
         labelList=[]
+        uidList=[]
         for key in self.prob:
             if self.prob[key]<1:
                 continue
 
-            iData, iLabel, iClass=self.q.get()
+            iData, iLabel, iUid,iClass=self.q.get()
 
             self.dictNumEventChannel[iClass]+=iData.shape[0]
 
             dataList.append(iData)
             labelList.append(iLabel)
+            uidList.append(iUid)
 
 
 
         data=np.concatenate(dataList,axis=0)
         label=np.concatenate(labelList,axis=0)
+        uid=np.concatenate(uidList,axis=0)
 
         if numItemKept<=0:
             self.data=data
             self.label=label
+            self.uid=uid
 
         else:
 
@@ -224,15 +234,16 @@ class DataSet(Dataset,Channel):
 
                 data=np.r_[self.data,data]
                 label=np.r_[self.label,label]
+                uid=np.r_[self.uid,uid]
 
             self.data=data[-int(numItemKept):,:]
             self.label=label[-int(numItemKept):]
+            self.uid=uid[-int(numItemKept):]
 
-
-    def SetDataLabel(self,data,label):
+    def SetDataLabel(self,data,label,uid):
         self.data=data
         self.label=label
-
+        self.uid=uid
 
 
 if __name__=='__main__':
@@ -263,10 +274,10 @@ if __name__=='__main__':
                                           shuffle=True, num_workers=1)
 
     dataiter = iter(trainLoader)
-    iData, iLabel = dataiter.next()
+    iData, iLabel, iUid = dataiter.next()
 
-    print(iData),print(iLabel)
-    print(iData.shape,iLabel.shape)
+    print(iData),print(iLabel),print(iUid)
+    print(iData.shape,iLabel.shape,iUid.shape)
 
 
 
