@@ -54,7 +54,8 @@ class DataSet(Dataset,Channel):
 
         self.branchSel={}
 
-        self.ReadCSV()
+        if self.numProcess>0:
+            self.ReadCSV()
 
 
 
@@ -133,8 +134,6 @@ class DataSet(Dataset,Channel):
             self.dictNumEventChannel[classList[idx]]=dataSize[idx]
 
         self.counterRead+=1
-
-
 
 
     def ReadCSV_OneFile(self,iClass, q=None, iCSV=None):
