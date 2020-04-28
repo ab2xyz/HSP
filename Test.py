@@ -48,8 +48,6 @@ class Test():
 
 
 
-
-
         self.NN=NN(self.numClasses)
 
         nnDictName=self.homeRes+'NN'+self.codeSave+'.plt'
@@ -71,43 +69,12 @@ class Test():
         self.loaderTest={}
 
 
-        ##
-
-
-
-
-        ##
-
-        # numLabels=1500
-        # self.labelsBK=self.labels
-        # self.labels={}
-        # counterLabers=0
-        # for i in self.labelsBK:
-        #     print(i)
-        #     counterLabers+=1
-        #     if counterLabers>numLabels:
-        #         break
-        #
-        #     self.labels[i]=self.labelsBK[i]
-        # self.numClasses=len(set(list(self.labels.values())))
-        # print(self.numClasses)
-        #
-        # # print(self.labelsBK)
-        # print(self.labels)
-
-
-        ##
-
-
-
-
 
 
 
 
 
         self.ReadCSV()
-
 
 
 
@@ -156,15 +123,11 @@ class Test():
         if self.cuda:
             self.NN=self.NN.cuda()
 
-
-
         cutsDict=self.GetCuts(effi=effi)
 
         effiSelDict={}
 
         for iChannel in tqdm(self.labels):
-
-
 
             loader=self.loaderTest[iChannel]
 
@@ -262,326 +225,113 @@ class Test():
 
 
 
+    def ReadRunLog2GetEffi(self,iChannel):
+        iLog=self.homeCSV+iChannel+'/runLog'
+        with open(iLog,'r') as f:
+            while True:
+                fLine=f.readline()
+                if 'numEventMC_PID/numEventMC' in fLine:
+                    iEff=float(fLine.split(':')[1])
+                    break
+            return iEff
 
-
-    def GetCuts(self,effi=0.9):
-
-        outputNN=None
-
-        idBkg=[]
-        idSig=[]
-        idTrigger=[]
-        for iChannel in tqdm(self.labels):
-            iChannleSplit=iChannel.split('_')
-
-            if 'DPM'  in iChannel:
-                idBkg.append(self.labels[iChannel])
-            elif iChannleSplit[0]==iChannleSplit[1]:
-                idSig.append(self.labels[iChannel])
-
-                idTrigger.append(int(iChannel.split('_')[0][1:]))
-
-            else:
+    def GetCuts(self,effi=0.999):
+        cutsDict={}
+        for channelSig in tqdm(self.labels):
+            channelSigSplit=channelSig.split('_')
+            if channelSigSplit[0]!=channelSigSplit[1]:
                 continue
 
-
-
-
-            loader=self.loaderTest[iChannel]
-
-            lossTest=0.
-            for i, data in enumerate(loader,0):
-                inputs, labels, uids = data
-
-
-                if inputs.shape[0]==1:
+            for channelBkg in tqdm(self.labels):
+                channelBkgSplit=channelBkg.split('_')
+                if channelBkgSplit[0]!=channelSigSplit[0]:
+                    continue
+                if not 'DPM' in channelBkg:
                     continue
 
-                inputs=inputs.float()
+                loaderSig=self.loaderTest[channelSig]
+                loaderBkg=self.loaderTest[channelBkg]
+
+
+                effiSig=self.ReadRunLog2GetEffi(channelSig)
+                effiBkg=self.ReadRunLog2GetEffi(channelBkg)
+
+                effiBkgTarget=(1-effi)/effiBkg
+
+
+                outputNN=None
+                for loader in [loaderSig,loaderBkg]:
+
+                    for i, data in enumerate(loader,0):
+                        inputs, iLabels, iUid = data
+
+                        if inputs.shape[0]==1:
+                            continue
+
+                        inputs=inputs.float()
+
+                        if self.cuda:
+                            inputs=inputs.cuda()
+
+                        outputs = self.NN(inputs)
+
+                        softmaxOutputs=self.softmax(outputs)
+
+
+                        if outputNN is None:
+                            outputNN=softmaxOutputs
+                            labels=iLabels
+                            uids=iUid
+                        else:
+                            outputNN=torch.cat([outputNN,softmaxOutputs],dim=0)
+                            labels=torch.cat([labels,iLabels],dim=0)
+                            uids=torch.cat([uids,iUid],dim=0)
+
 
                 if self.cuda:
-                    inputs=inputs.cuda()
-
-                outputs = self.NN(inputs)
-
-                softmaxOutputs=self.softmax(outputs)
-
-                if self.cuda:
-                    softmaxOutputs=softmaxOutputs.cpu()
-                softmaxOutputsNumpy=softmaxOutputs.detach().numpy()
-
-                iOutputNN=np.c_[softmaxOutputsNumpy,labels,uids]
-
-                if outputNN is None:
-                    outputNN=iOutputNN
-                else:
-                    outputNN=np.r_[outputNN,iOutputNN]
+                    outputNN=outputNN.cpu()
+                outputNN=outputNN.detach().numpy()
+                labels=labels.detach().numpy()
+                uids=uids.detach().numpy()
 
 
+                classSig=self.labels[channelSig]
+                classBkg=self.labels[channelBkg]
 
-        lb=np.zeros(len(idSig))+1e-8
-        ub=np.ones(len(idSig))-1e-8
+                dataSig=outputNN[:,classSig]
+                # dataBkg=outputNN[:,classBkg]
 
-        popuMemo, popuMemoMarks,popuRecommand=self.PSOND(self.FuncCuts,lb,ub, swarmsize=200,maxiter=100, memorysize=1000,pltShow=True, outputNN=outputNN,idBkg=idBkg,idSig=idSig,effi=effi)
+                # boolSig=labels==classSig
+                boolBkg=labels==classBkg
 
-        popuBest=popuMemo[np.argmin(np.abs(popuMemoMarks[:,0])),:]
+                dataSig_Bkg=dataSig[boolBkg]   # BKG's sig marks
+                uidBkg=uids[boolBkg]
 
-        cuts=popuBest
+                dataSig_Bkg_Argsort=np.argsort(dataSig_Bkg)
 
-
-
-        cutsDict=dict(zip(idTrigger,cuts))
-
-
-
+                dataSig_Bkg_Sort=dataSig_Bkg[dataSig_Bkg_Argsort]    # dataSig_Bkg Sort
+                uidBkg_Sort=uidBkg[dataSig_Bkg_Argsort]     #  keys sorted with Origin-value-sorting...
 
 
-        cutsLog=self.homeRes+'cuts'+self.codeSave+'.log'
-        with open(cutsLog,'w') as f:
-            [f.writelines('%s  :  %.6f\n'%(x,y)) for x,y in cutsDict.items()]
+                dict_Uid_DataSig=dict(zip(uidBkg_Sort,dataSig_Bkg_Sort))
+
+                dict_DataSig=list(dict_Uid_DataSig.values()).sort()
+                # dict_DataSig.sort()
+                # numEvent=float(len(dict_DataSig))
+
+                # idxCut=int(numEvent*(1.-effiBkgTarget))
+                # if idxCut<0:
+                #     idxCut=0
+
+                iCut=dict_DataSig[max(0,int(float(len(dict_DataSig))*(1.-effiBkgTarget)))]    # sig>cut  ! ! !
+
+
+
+            cutsDict[self.labels[channelSig]]=iCut
+
+        [print(x,y) for x,y in cutsDict.items()]
 
         return cutsDict
-
-
-
-
-
-    def FuncCuts(self,cuts, **kwargs):
-        outputNN=kwargs['outputNN']
-        idBkg=kwargs['idBkg']
-        idSig=kwargs['idSig']
-        effi=kwargs['effi']
-
-        ## --  Bkg
-
-        bkgIdx=None     # All the idx of bkg
-        for iBkg in idBkg:
-            iBkgIdx=outputNN[:,-2]==iBkg
-            if bkgIdx is None:
-                bkgIdx=iBkgIdx
-            else:
-                bkgIdx=bkgIdx +iBkgIdx
-
-        bkgItem=outputNN[bkgIdx,-1]     # All the  items of bkg
-        bkgUid=np.unique(bkgItem)     # The uid of bkg
-        bkgNum=bkgUid.shape[0]       # The number of bkg
-
-
-
-
-        ## -- Sig
-        cuts=cuts[:len(idSig)]
-
-        sigIdx=None     # All the index > cuts  True signal
-        idxCut=-1
-        for iSig in idSig:
-            idxCut+=1
-            iCut=cuts[idxCut]
-
-            iSigIdx=outputNN[:,iSig]>iCut
-
-            if sigIdx is None:
-                sigIdx=iSigIdx
-            else:
-                sigIdx=sigIdx+iSigIdx
-
-
-        #
-
-
-        sigIdxUid=sigIdx.astype(int)*outputNN[:,-1]
-
-        bkgUidTrue=np.setdiff1d(bkgUid,sigIdxUid)
-
-        bkgTrueNum=bkgUidTrue.shape[0]
-
-        bkgEff=float(bkgTrueNum)/float(bkgNum)-1e-15
-
-        # effiErrBkg=np.log((1.-effi+1e-9)/(1.-bkgEff+1e-9))**2
-        effiErrBkg=np.log((1.-effi)/(1.-bkgEff))
-
-
-        cutsNorm=np.linalg.norm(cuts,ord=2)
-
-        return effiErrBkg,cutsNorm
-
-
-    def PSOND(self,Func,lb,ub, swarmsize=500,maxiter=100, memorysize=1000,pltShow=True, *args,  **kwargs):
-        lb,ub=np.array(lb),np.array(ub)
-
-        mb=(lb+ub)/2
-
-        numB=len(mb)
-
-        target=Func(mb, *args, **kwargs)
-
-        numTarget = len(target)
-
-
-        lwcc=np.ones((numTarget+3))*0.001
-        uwcc=np.ones((numTarget+3))*3.
-
-        lb=np.r_[lb,lwcc]
-        ub=np.r_[ub,uwcc]
-
-        mb=(lb+ub)/2
-        numB=len(mb)
-
-
-        for iIter in tqdm(range(maxiter)):
-            # print(iIter)
-            if iIter==0:
-
-                popu=np.random.random((swarmsize//1,numB))*(ub-lb)+lb
-                vPopu=np.random.random((swarmsize//1,numB))*(ub-lb)*0.01
-
-
-                popuMemo=np.zeros((memorysize//1+swarmsize//1,numB))
-                popuMemoMarks=np.ones((memorysize//1+swarmsize//1,numTarget))*1e15
-
-
-                popuLocal=np.zeros((swarmsize//1,numB,numTarget))
-                popuLocalMarks=np.ones((swarmsize//1,numTarget))*1e15
-
-                numMemo=0
-
-            else:
-
-                idx0=np.random.choice(range(numMemo),size=swarmsize)
-                idx1=np.random.choice(range(numMemo),size=swarmsize)
-                idx2=np.random.choice(range(numMemo),size=swarmsize)
-                idx3=np.random.choice(range(numMemo),size=swarmsize)
-
-                r=[]
-                for iR in range(numTarget+2):
-                    r.append(np.random.random()/(numTarget+2))
-
-
-                wcc=[]
-                nRepeat=vPopu.shape[1]
-                for iWcc in range(-(numTarget+3),0):
-                    wcc.append(popu[:,iWcc][:,np.newaxis].repeat(nRepeat,axis=1))
-
-                idx1=np.random.choice(range(numMemo),size=swarmsize)
-                idx2=np.random.choice(range(numMemo),size=swarmsize)
-
-                vPopu=wcc[-(numTarget+3)]*vPopu+r[0]*wcc[-(numTarget+2)]*(popuMemo[idx1,:]-popu)+r[1]*wcc[-(numTarget+1)]*(popuMemo[idx2,:]-popu)
-
-                for iNumTarget in range(numTarget):
-                    vPopu+=r[iNumTarget+2]*wcc[-(numTarget-iNumTarget)]*(popuLocal[:,:,iNumTarget]-popu)
-
-
-                popu=popu+vPopu
-
-
-                for idxB in range(numB):
-                    popu[popu[:,idxB]<lb[idxB],idxB]=lb[idxB]
-                    popu[popu[:,idxB]>ub[idxB],idxB]=ub[idxB]
-
-
-            for iSwarm in range(swarmsize//1):
-
-                target=Func(popu[iSwarm,:-3], *args, **kwargs)
-
-                tar=np.array(target)
-                tarFlag=((tar>popuMemoMarks[:numMemo]).all(axis=1)).any()
-
-                if tarFlag:
-                    # Be dominated
-                    continue
-
-                tarFlag=~(tar<popuMemoMarks[:numMemo]).all(axis=1)
-
-                popuMemoMarksBK=popuMemoMarks[:numMemo][tarFlag,:].copy()
-                popuMemoBK=popuMemo[:numMemo][tarFlag,:].copy()
-
-                numMemo=popuMemoMarksBK.shape[0]+1
-                popuMemoMarks[:numMemo-1,:]=popuMemoMarksBK.copy()
-                popuMemo[:numMemo-1,:]=popuMemoBK.copy()
-
-
-                popuMemoMarks[numMemo-1,:]=tar
-                popuMemo[numMemo-1,:]=popu[iSwarm,:].copy()
-
-
-
-                ##
-
-                for iTarget in range(numTarget):
-                    if tar[iTarget]<=popuLocalMarks[iSwarm,iTarget]:
-                        popuLocalMarks[iSwarm,iTarget]=tar[iTarget]
-                        popuLocal[iSwarm,:,iTarget]=popu[iSwarm,:].copy()
-
-
-            if numMemo>memorysize:     #delete dense particles
-                num=numMemo-memorysize
-                for iDel in range(num):
-                    idxRand=np.random.choice(range(numMemo),3)
-
-                    iR=[]
-                    for iRand in idxRand:
-                        popuMemoMarksNorm=(popuMemoMarks-popuMemoMarks[:numMemo,:].min(axis=0))/popuMemoMarks[:numMemo,:].max(axis=0)
-
-                        iMark=popuMemoMarksNorm[iRand,:]
-                        iMarkDiff=popuMemoMarksNorm-iMark
-
-
-                        iNorm=(iMarkDiff**2).sum(axis=1)
-                        iNorm.sort()
-                        iR.append(iNorm[:10].sum())
-
-                    idx=idxRand[np.argmin(iR)]
-
-                    popuMemoMarks[idx,:]=popuMemoMarks[numMemo-1,:]
-                    popuMemo[idx,:]=popuMemo[numMemo-1,:]
-
-                    numMemo-=1
-
-                print(numMemo, memorysize)
-
-
-
-
-
-            if pltShow:
-
-                plt.figure('Fit')
-                plt.clf()
-                plt.plot(popuMemoMarks[:numMemo,0],popuMemoMarks[:numMemo,1],'.')
-                # iMean=popuMemoMarks[:numMemo,:].mean(axis=0)
-                # iStd=  popuMemoMarks[:numMemo,:].std(axis=0)
-                # xlim=(max(0,(iMean[0]-3*iStd[0]),iMean[0]+3*iStd[0]))
-                # ylim=(max(0,(iMean[1]-3*iStd[1]),iMean[1]+3*iStd[1]))
-                # print(iMean,iStd,xlim,ylim)
-
-                plt.grid()
-                plt.title(numMemo)
-                plt.pause(0.01)
-                # plt.show()
-
-
-
-        if 'popuRecommand' not in locals():
-            # popuMemoMarksInt=((popuMemoMarks[:numMemo,:]-popuMemoMarks[:numMemo,:].min(axis=0))/((popuMemoMarks[:numMemo,:].max(axis=0)-popuMemoMarks[:numMemo,:].min(axis=0))/(int(memorysize**0.5)))).astype(int)
-            #
-            # popuMemoMarksIntValue,popuMemoMarksIntCount=np.unique(popuMemoMarksInt, axis=0,return_counts=True)
-            # popuMemoMarksIntCountArgMax=np.argmax(popuMemoMarksIntCount)
-            # idxPopuRecommandList=np.where((popuMemoMarksInt==popuMemoMarksIntValue[popuMemoMarksIntCountArgMax]).all(axis=1))[0]
-            # idxPopuRecommand=idxPopuRecommandList[0] if len(idxPopuRecommandList)>0 else idxPopuRecommandList
-            #
-            # popuRecommand=popuMemo[idxPopuRecommand,:-(numTarget+3)]
-
-            popuRecommand=popuMemo[np.argmin(np.linalg.norm(popuMemoMarks[:numMemo,:],axis=1,ord=2)),:-(numTarget+3)]
-
-        popuMemo=popuMemo[:numMemo,:-(numTarget+3)]
-        popuMemoMarks=popuMemoMarks[:numMemo,:]
-        popuRecommand=popuRecommand
-
-
-        print(popuMemo.shape,popuMemoMarks.shape)
-        return popuMemo, popuMemoMarks,popuRecommand
-
-
 
 
 if __name__=='__main__':
@@ -590,9 +340,9 @@ if __name__=='__main__':
     homeCSV='/home/i/iWork/data/csv'
     homeRes='/home/i/iWork/data/res'
     from DNN import NN
-    codeSave='_20200427_000231'
+    codeSave='_20200426_200040'
 
-    numFilesCut=20
+    numFilesCut=1
     batchSize=1024*16
     numProcessor=1
     cuda=True
@@ -600,13 +350,13 @@ if __name__=='__main__':
 
 
     oTest=Test(homeCSV=homeCSV,homeRes=homeRes,NN=NN,codeSave=codeSave,numFilesCut=numFilesCut, batchSize=batchSize, numProcessor=numProcessor, cuda=cuda)
-    # oTest.Test()
+    oTest.Test()
     # oTest.TestMean()
 
-    for iTime in range(10000):
-        oTest.Test(effi)
-        print('\n'+'-'*80+'\n')
-        time.sleep(200)
+    # for iTime in range(10000):
+    #     oTest.Test(effi)
+    #     print('\n'+'-'*80+'\n')
+    #     time.sleep(200)
 
 
     # oTest.GetCuts()

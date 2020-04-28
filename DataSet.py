@@ -101,7 +101,7 @@ class DataSet(Dataset,Channel):
         iData=self.Resize(iData)
 
         iLabel=self.label[idx]
-        iUid=self.uid[idx]
+        iUid=self.uid[idx,0]
 
 
         data=(iData,iLabel,iUid)
@@ -133,6 +133,8 @@ class DataSet(Dataset,Channel):
             self.dictNumEventChannel[classList[idx]]=dataSize[idx]
 
         self.counterRead+=1
+
+
 
 
     def ReadCSV_OneFile(self,iClass, q=None, iCSV=None):
