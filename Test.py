@@ -247,7 +247,7 @@ class Test():
 
     def GetEffiBkg(self):
         uidsBkgDictFP={}
-        # uidsBkgDict={}
+        uidsBkgDict={}
         effiBkgDict={}
         numBkg=0
 
@@ -268,33 +268,33 @@ class Test():
             for iDPM in DPMList:
                 if iDPM in iChannel:
                     iUidsTriggerDict=self.uidsTriggerDict[iChannel]
-                    # iUidsUniqueDict=self.uidsUniqueDict[iChannel]
+                    iUidsUniqueDict=self.uidsUniqueDict[iChannel]
 
                     if iDPM in  uidsBkgDictFP:
                         iUidsTriggerDict=np.r_[uidsBkgDictFP[iDPM],iUidsTriggerDict[:,0]]
                         uidsBkgDictFP[iDPM]=np.unique(iUidsTriggerDict)
 
-                        if numBkg==0:
-                            iUidsUniqueDict=self.uidsUniqueDict[iChannel]
-                            numUidsUniqueDict=iUidsUniqueDict.shape[0]
-                            iEffiMCTrue=self.ReadRunLog2GetEffi(iChannel)
-                            numBkg=numUidsUniqueDict/iEffiMCTrue
+                        # if numBkg==0:
+                        #     iUidsUniqueDict=self.uidsUniqueDict[iChannel]
+                        #     numUidsUniqueDict=iUidsUniqueDict.shape[0]
+                        #     iEffiMCTrue=self.ReadRunLog2GetEffi(iChannel)
+                        #     numBkg=numUidsUniqueDict/iEffiMCTrue
+                        #
+                        #     print('*'*80)
+                        #     print(iChannel)
+                        #     print(iUidsUniqueDict)
+                        #     print(numUidsUniqueDict)
+                        #     print(iEffiMCTrue)
+                        #     print(numBkg)
 
-                            print('*'*80)
-                            print(iChannel)
-                            print(iUidsUniqueDict)
-                            print(numUidsUniqueDict)
-                            print(iEffiMCTrue)
-                            print(numBkg)
-
-                        # iUidsUniqueDict=np.r_[uidsBkgDict[iDPM],iUidsUniqueDict]
-                        # uidsBkgDict[iDPM]=np.unique(iUidsUniqueDict)
+                        iUidsUniqueDict=np.r_[uidsBkgDict[iDPM],iUidsUniqueDict]
+                        uidsBkgDict[iDPM]=np.unique(iUidsUniqueDict)
 
                     else:
                         uidsBkgDictFP[iDPM]=iUidsTriggerDict[:,0]
-                        # uidsBkgDict[iDPM]=iUidsUniqueDict
+                        uidsBkgDict[iDPM]=iUidsUniqueDict
 
-                    print(uidsBkgDictFP[iDPM].shape)
+                    # print(uidsBkgDictFP[iDPM].shape)
 
         for iDPM in uidsBkgDictFP:
 
@@ -303,7 +303,7 @@ class Test():
             #         numBkg=self.ReadRunLog2GetNumEventMC(iChannel)
             #         break
 
-            effiBkgDict[iDPM]=1.-uidsBkgDictFP[iDPM].shape[0]/numBkg
+            effiBkgDict[iDPM]=1.-uidsBkgDictFP[iDPM].shape[0]/uidsBkgDict[iDPM].shape[0]
 
 
         effiBkgLog=self.homeRes+'effiBkg'+self.codeSave+'.log'
@@ -476,7 +476,7 @@ if __name__=='__main__':
     from DNN import NN
     codeSave='_20200428_143331'
 
-    numFilesCut=2
+    numFilesCut=10
     batchSize=1024*16
     numProcess=5
     cuda=True
