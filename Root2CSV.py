@@ -9,11 +9,13 @@ from tqdm import tqdm
 import time
 import shutil
 
+
 from Channel import Channel
 
 class Root2CSV(Channel):
     def __init__(self,homeRoot,homeCSV,channels=None,numEventPerFile=2048,numProcess=10):
         super(Root2CSV,self).__init__(homeCSV,channels)
+
 
         # home of Root
         self.homeRoot=homeRoot
@@ -22,6 +24,7 @@ class Root2CSV(Channel):
 
         self.channels=self.Channel(home=self.homeRoot,channels=channels)
 
+        self.flagChecked=False
 
         # # home of csv:
         os.makedirs(self.homeCSV,exist_ok=True)
@@ -117,8 +120,6 @@ class Root2CSV(Channel):
 
         # Determine whether it is a signal or a noise
 
-        print(roots)
-        print(iChannel)
 
         iRoot=roots[0].split('_')
         nRoot=len(iRoot)
@@ -275,7 +276,9 @@ class Root2CSV(Channel):
 
 
         self.channelsChecked, self.channelsNotChecked=channelsChecked, channelsNotChecked
-        return channelsChecked, channelsNotChecked
+        self.flagChecked=len(channelsNotChecked)==0
+        # return channelsChecked, channelsNotChecked,self.flagChecked
+        return self.flagChecked
 
     def DelFolderChannelsNotChecked(self):
         for iChannel in self.channelsNotChecked:
@@ -291,14 +294,44 @@ class Root2CSV(Channel):
             self.channels=[channels]
 
     def ReRun(self):
-        if len(self.channelsNotChecked)==0:
-            return
+        self.Check()
+        if self.flagChecked:
+            return self.flagChecked
         self.DelFolderChannelsNotChecked()
         self.channelsBK=self.channels
         self.SetChannel(self.channelsNotChecked)
         self.Run()
         self.channels=self.channelsBK
         self.Check()
+        return self.flagChecked
+
+    def Check2Finish(self,timeSecondDelta=60,timeSecondTotal=7200,label=None):
+        if label is None:
+            label=type(self).__name__
+
+        self.Check()
+        if self.flagChecked:
+            print(label+' : ', self.flagChecked, '  (Successful)')
+            return self.flagChecked
+
+        numCounter=timeSecondTotal/timeSecondDelta
+        iCounter=-1
+        while True:
+            iCounter+=1
+            if iCounter>=numCounter:
+                assert self.flagChecked,label+' Failed, please try larger timeSecondTotal'
+                print(label+' : ', self.flagChecked, '  (Failed)')
+                return self.flagChecked
+
+            print('Running  %s  x  %d  @ %s'%(label, iCounter,self.channelsNotChecked[0]))
+
+            time.sleep(timeSecondDelta)
+
+            self.Check()
+            if self.flagChecked:
+                print(label+' : ', self.flagChecked, '  (Successful)')
+                return self.flagChecked
+
 
 
 

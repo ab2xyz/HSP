@@ -23,7 +23,7 @@ from Data import Data
 
 
 class DataSet(Dataset,Channel):
-    def __init__(self,homeCSV,channels,channel2Label,numClasses,branch4Train, resize=(17,17),numProcess=10):
+    def __init__(self,homeCSV,listCSV,labels,numClasses,branch4Train, resize=(17,17),numProcess=10):
         self.homeCSV=homeCSV
         if self.homeCSV.strip()[-1]!='/':
             self.homeCSV=self.homeCSV+'/'

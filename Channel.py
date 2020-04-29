@@ -13,17 +13,6 @@ class Channel():
 
 
         def Channel(self,home,channels):
-            # # channels
-            # if channels is None:
-            #     channels=[x for x in os.listdir(home) if os.path.isdir(home+x)]
-            #
-            # else:
-            #     if isinstance(channels,list):
-            #         channels=channels
-            #         channels.sort()
-            #     else:
-            #         channels=[channels]
-
 
             if isinstance(channels,list):
                 channels=channels
@@ -35,8 +24,6 @@ class Channel():
 
                     channels=[x for x in os.listdir(home) if os.path.isdir(home+x) and channels in x]
 
-
-
             channels.sort()
 
             return channels
@@ -45,6 +32,9 @@ class Channel():
         def GetChannel(self,):
             print(self.channels)
             return self.channels
+
+        def PrintDict(self,iDict):
+            [print(x,y) for x,y in iDict.items()]
 
 
 if __name__=='__main__':
