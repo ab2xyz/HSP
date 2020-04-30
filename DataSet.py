@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+'''
+This version works fine with Queue and starmap!
+
+'''
+
 
 import numpy as np
 
@@ -303,10 +308,6 @@ class DataSet(Dataset,Channel):
 
 
 
-
-
-
-
     def __len__(self):
         return len(self.data)
 
@@ -318,8 +319,6 @@ class DataSet(Dataset,Channel):
 
 if __name__=='__main__':
     pass
-
-
 
 
 

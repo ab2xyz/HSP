@@ -98,13 +98,14 @@ setTest=DataSet(homeCSV=homeCSVTest,
                  branch4Train=branch4Train,
                  resize=resize)
 
-# setTest.ReadTestSet(channels=['T08_DPM_45'],numCSV=0)
+# setTest.ReadTestSet(channels=['T08_DPM_45'],numCSV=2)
 # setTest.ReadTestGet()
-setTest.ReadTest(channels=['T08_DPM_45'],numCSV=0,numProcess=12)
+setTest.ReadTest(channels=['T08_DPM_45'],numCSV=0,numProcess=numProcess)
 
 
 ## Step 7
 ## NN
+
 
 ## Step 7
 ## Train
