@@ -23,129 +23,94 @@ from Data import Data
 
 
 class DataSet(Dataset,Channel):
-    def __init__(self,homeCSV,channels,channel2Label,numClasses,branch4Train, resize=(17,17),numProcess=10):
-        self.homeCSV=homeCSV
-        if self.homeCSV.strip()[-1]!='/':
-            self.homeCSV=self.homeCSV+'/'
+    def __init__(self,homeCSV,channels,channel2Label,numClass,branch4Train, resize=(17,17)):
+        super(DataSet,self).__init__(homeCSV,channels)
 
-        self.listCSV=listCSV
-        self.labels=labels
-        self.numClasses=numClasses
+        self.channel2Label=channel2Label
+        self.numClass=numClass
         self.branch4Train=branch4Train
         self.branch4Train.sort()
 
-        self.numProcess=numProcess
-
         self.resize=resize
+        self.resizeProd=np.prod(self.resize)
 
 
-        self.branch4Train.sort()
-
-        self.data=pd.DataFrame(columns=self.branch4Train)
-        self.label=np.array([])
-
-        self.prob=dict(zip(range(self.numClasses),np.ones(self.numClasses)))
-        self.dictNumEventChannel=dict(zip(range(self.numClasses),np.zeros(self.numClasses)))
-
-        self.counterRead=0
-        self.probPositive=self.numClasses
-
-        self.Label2Data()
-
+        self.Label2Channel()
+        self.ProbInit()
+        self.channel_csv={}
         self.branchSel={}
 
-        if self.numProcess>0:
-            self.ReadCSV()
 
 
 
-    def Label2Data(self):
-        label2Channel={}
-        for channle, label in self.labels.items():
-            if label in label2Channel.keys():
-                label2Channel[label].append(channle)
-                label2Channel[label].sort()
+    def Label2Channel(self):
+        self.label2Channel={}
+        for iChannel in self.channel2Label:
+            iLabel=self.channel2Label[iChannel]
+            if not iLabel in self.label2Channel:
+                self.label2Channel[iLabel]=[]
+            self.label2Channel[iLabel].append(iChannel)
+
+        # self.PrintDict(self.label2Channel)
+
+
+
+    def ProbInit(self):
+
+        self.prob=dict(zip(range(self.numClass),np.ones(self.numClass)))
+        self.dictLabelNumItem=dict(zip(range(self.numClass),np.zeros(self.numClass)))
+
+        self.counterRead=0
+        self.probPositive=self.numClass
+
+
+
+    def Prob(self):
+
+        numEventMeanLabelNext=np.sum(list(self.dictLabelNumItem.values()))/self.probPositive*(self.counterRead+1)
+
+        for key in self.dictLabelNumItem:
+            if self.dictLabelNumItem[key]>numEventMeanLabelNext:
+                self.prob[key]=0
             else:
-                label2Channel[label]=[channle]
+                self.probPositive+=1
+                self.prob[key]=1
 
-        self.label2Channel=label2Channel
-
-        label2CSV={}
-        for channel, label in self.labels.items():
-            if label in label2CSV.keys():
-                label2CSV[label].extend([self.homeCSV+channel+'/'+x for x in self.listCSV[channel]])
-                label2CSV[label].sort()
-            else:
-                label2CSV[label]=[self.homeCSV+channel+'/'+x for x in self.listCSV[channel]]
-
-        self.label2CSV=label2CSV
-
-        logLabel2CSV=self.homeCSV+'label2CSVLog'
-        with open(logLabel2CSV,'w') as f:
-            for x, y in  self.label2CSV.items():
-                f.writelines('label=%d  -- number of csvs=%d \n'%(x,len(y)))
-                [f.writelines(z+'\n') for z in y]
-                f.writelines('='*80+'\n'*2)
+        if numEventMeanLabelNext>0:
+            with open(self.homeCSV+'probLog','w') as f:
+                [f.writelines('%d :%.1f \n'%(i, self.dictLabelNumItem[i]/numEventMeanLabelNext/self.counterRead*(self.counterRead+1))) for i in self.dictLabelNumItem]
 
 
-    def Resize(self,x):
-        return np.resize(x,self.resize)
+
+    def Label2CSV(self,iLabel):
+        iChannel=np.random.choice(self.label2Channel[iLabel])
+
+        if not iChannel in self.channel_csv:
+            self.channel_csv[iChannel]=[x for x in os.listdir(self.homeCSV+iChannel) if x[-4:]=='.csv']
+
+        iCSV=self.homeCSV+iChannel+'/'+np.random.choice(self.channel_csv[iChannel])
+
+        return iCSV
 
 
-    def __len__(self):
-        return len(self.data)
 
 
-    def __getitem__(self,idx):
-
-        iData=self.data[idx,:]
-        iData=self.Resize(iData)
-
-        iLabel=self.label[idx]
-        iUid=self.uid[idx,0]
 
 
-        data=(iData,iLabel,iUid)
+    def Label_CSV2Read4Train(self):
+        self.Prob()
 
-        return data
+        label4Read=[iClass for iClass in range(self.numClass) if self.prob[iClass]>0]
 
-
-    def ReadCSV(self):
-
-        ## 分开处理csvlist： 读取-处理
-        pool = Pool(self.numProcess,maxtasksperchild=1)
-
-        data_label=pool.map(self.ReadCSV_OneFile, range(self.numClasses), chunksize=1)
-        dataList=[x[0] for x in data_label]
-        labelList=[x[1] for x in data_label]
-        uidList=[x[2] for x in data_label]
-        classList=[x[3] for x in data_label]
-
-        # self.data=pd.concat((dataList),sort=True)
-        self.data=np.concatenate(dataList,axis=0)
-        self.label=np.concatenate(labelList,axis=0)
-        self.uid=np.concatenate(uidList,axis=0)
-
-        pool.close()
-
-        dataSize=[x.shape[0] for x in dataList]
-
-        for idx in range(self.numClasses):
-            self.dictNumEventChannel[classList[idx]]=dataSize[idx]
-
-        self.counterRead+=1
+        self.label_csv={}
+        for iLabel in label4Read:
+            iCSV=self.Label2CSV(iLabel)
+            self.label_csv[iLabel]=iCSV
 
 
-    def ReadCSV_OneFile(self,iClass, q=None, iCSV=None):
-
-        if iCSV is None:
-            iCSV=choice(self.label2CSV[iClass])
 
 
-        data=pd.DataFrame(columns=self.branch4Train)
-        label=np.array([])
-        uid=pd.DataFrame(columns=['uid'])
-
+    def ReadCSVOneFile(self,iLabel, iCSV, q=None):
 
         iChannel=iCSV.split('/')[-2]
         if iChannel in self.branchSel:
@@ -156,61 +121,60 @@ class DataSet(Dataset,Channel):
             iBranchSel.sort()
             self.branchSel[iChannel]=iBranchSel
 
-
+        data=pd.DataFrame(columns=self.branch4Train)
         iData=pd.read_csv(iCSV,usecols=iBranchSel)
-        iLabel=np.ones((iData.shape[0]),dtype=np.long)*iClass
-        iUid=pd.read_csv(iCSV,usecols=['uid'])
+        data=pd.concat((data,iData),sort=True).fillna(0).values
 
-        iData=pd.concat((data,iData),sort=True).fillna(0).values
-        iLabel=np.r_[label,iLabel]
-        iUid=pd.concat((uid,iUid),sort=True).fillna(0).values
+
+        mData,nData=data.shape
+        assert(self.resizeProd>=nData),"'resize' is less than the real data, and data will be cut... Please enlarge the resize."
+        if self.resizeProd>nData:
+            zeros=np.zeros((mData,self.resizeProd-nData))
+            data=np.c_[data,zeros]
+
+        reshape=[mData]
+        for i in self.resize:
+            reshape.append(i)
+        data=data.reshape(reshape)
+
+
+        uid=pd.read_csv(iCSV,usecols=['uid']).values[:,0]
+
+        label=np.ones((uid.shape[0]))*iLabel
 
         if q is None:
-            return (iData,iLabel,iUid, iClass)
-
+            return (data,label,uid, iLabel)
         else:
-            q.put([iData,iLabel,iUid, iClass])
+            q.put([data,label,uid, iLabel])
 
 
-    def Prob(self):
-        numEventChannelAveNext=np.sum(list(self.dictNumEventChannel.values()))/self.probPositive*(self.counterRead+1)
-
-        for key in self.dictNumEventChannel:
-            if self.dictNumEventChannel[key]>numEventChannelAveNext:
-                self.prob[key]=0
-            else:
-                self.probPositive+=1
-                self.prob[key]=1
 
 
-        with open(self.homeCSV+'probLog','w') as f:
-            [f.writelines('%d :%.1f \n'%(i, self.dictNumEventChannel[i]/numEventChannelAveNext/self.counterRead*(self.counterRead+1))) for i in self.dictNumEventChannel]
-
-
-    def ReadSet(self):
-        self.Prob()
-
+    def ReadTrainSet(self):
+        self.Label_CSV2Read4Train()
         self.q=Queue()
 
-        # p=[print(iClass) for iClass in range(self.numClasses) if self.prob[iClass]>0]
-
-        p=[Process(target=self.ReadCSV_OneFile, args=(iClass,self.q,)) for iClass in range(self.numClasses) if self.prob[iClass]>0]
+        p=[Process(target=self.ReadCSVOneFile, args=(iLabel,iCSV, self.q,)) for iLabel,iCSV in self.label_csv.items()]
         [ip.start() for ip in p]
 
 
-    def ReadGet(self,numItemKept=100000):
+
+    def ReadTrainGet(self,numItemKeep=1e6):
+
         self.counterRead+=1
 
         dataList=[]
         labelList=[]
         uidList=[]
+
         for key in self.prob:
             if self.prob[key]<1:
                 continue
 
+
             iData, iLabel, iUid,iClass=self.q.get()
 
-            self.dictNumEventChannel[iClass]+=iData.shape[0]
+            self.dictLabelNumItem[iClass]+=iData.shape[0]
 
             dataList.append(iData)
             labelList.append(iLabel)
@@ -222,63 +186,140 @@ class DataSet(Dataset,Channel):
         label=np.concatenate(labelList,axis=0)
         uid=np.concatenate(uidList,axis=0)
 
-        if numItemKept<=0:
+
+        if not hasattr(self,'data'):
             self.data=data
             self.label=label
             self.uid=uid
 
         else:
+            if numItemKeep<=0:
+                self.data=data
+                self.label=label
+                self.uid=uid
+            else:
+                if data.shape[0]<numItemKeep:
 
-            if data.shape[0]<numItemKept:
-                # data=np.concatenate((self.data,data),axis=0)
-                # label=np.concatenate((self.label,label),axis=0)
+                    data=np.r_[self.data,data]
+                    label=np.r_[self.label,label]
+                    uid=np.r_[self.uid,uid]
 
-                data=np.r_[self.data,data]
-                label=np.r_[self.label,label]
-                uid=np.r_[self.uid,uid]
+                self.data=data[-int(numItemKeep):,:]
+                self.label=label[-int(numItemKeep):]
+                self.uid=uid[-int(numItemKeep):]
 
-            self.data=data[-int(numItemKept):,:]
-            self.label=label[-int(numItemKept):]
-            self.uid=uid[-int(numItemKept):]
+        self.q.close()
 
-    def SetDataLabel(self,data,label,uid):
+    def SetDataLabelUid(self,data,label,uid):
         self.data=data
         self.label=label
         self.uid=uid
 
 
+    def Label_CSV2Read4Test(self,channels,numCSV):
+        self.csv_label={}
+
+        if channels is None:
+            channels=self.channels
+        else:
+            if not isinstance(channels,list):
+                channels=[channels]
+
+        channels4Label=[]
+        for iChannel in channels:
+            channels4Label.extend([x for x in self.channels if iChannel in x])
+            channels4Label=list(set(channels4Label))
+            channels4Label.sort()
+
+
+        assert(len(channels4Label)>0),'channels in DataSet.ReadTestSet(channels=...) incorrect... '
+
+
+        for iChannel in channels4Label:
+            iLabel=self.channel2Label[iChannel]
+            csvs=[x for x in os.listdir(self.homeCSV+iChannel) if x[-4:]=='.csv']
+            if numCSV>0:
+                csvs=csvs[0:int(numCSV)]
+            for iCSV in csvs:
+                self.csv_label[self.homeCSV+iChannel+'/'+iCSV]=iLabel
+
+
+    def ReadTestSet(self,channels=None,numCSV=0):
+        self.Label_CSV2Read4Test(channels=channels,numCSV=numCSV)
+        self.q=Queue()
+
+        p=[Process(target=self.ReadCSVOneFile, args=(iLabel,iCSV, self.q,)) for iCSV,iLabel in self.csv_label.items()]
+        [ip.start() for ip in p]
+
+
+    def ReadTestGet(self):
+
+        dataList=[]
+        labelList=[]
+        uidList=[]
+
+        for i in range(len(self.csv_label)):
+            iData, iLabel, iUid,iClass=self.q.get()
+
+            self.dictLabelNumItem[iClass]+=iData.shape[0]
+
+            dataList.append(iData)
+            labelList.append(iLabel)
+            uidList.append(iUid)
+
+
+        self.data=np.concatenate(dataList,axis=0)
+        self.label=np.concatenate(labelList,axis=0)
+        self.uid=np.concatenate(uidList,axis=0)
+
+        self.q.close()
+
+
+
+    def ReadTest(self,channels=None,numCSV=0,numProcess=6):
+        self.Label_CSV2Read4Test(channels=channels,numCSV=numCSV)
+
+
+
+        label_csv=[]
+        for iCSV in self.csv_label:
+            label_csv.append((self.csv_label[iCSV],iCSV))
+
+
+        pool = Pool(numProcess,maxtasksperchild=1)
+
+        data_label=pool.starmap(self.ReadCSVOneFile, label_csv)
+
+        dataList=[x[0] for x in data_label]
+        labelList=[x[1] for x in data_label]
+        uidList=[x[2] for x in data_label]
+
+
+        self.data=np.concatenate(dataList,axis=0)
+        self.label=np.concatenate(labelList,axis=0)
+        self.uid=np.concatenate(uidList,axis=0)
+
+        pool.close()
+
+
+
+
+
+
+
+    def __len__(self):
+        return len(self.data)
+
+
+    def __getitem__(self,idx):
+
+        return (self.data[idx,:],self.label[idx,:],self.uid[idx,:])
+
+
 if __name__=='__main__':
-    homeCSV='/home/i/iWork/data/csv'
-    numProcess=10
-
-    oData=Data(homeCSV,channels=None,ratioSetTrain=0.7,ratioSetTest=0.3,ratioSetValid=0.)
-
-    listCSV4Test=oData.GetListCSV4Test()
-    listCSV4Valid=oData.GetListCSV4Valid()
-    listCSV4Train=oData.GetListCSV4Train()
+    pass
 
 
-    labels=oData.GetLabels()
-    numClasses=oData.GetNumClasses()
-    branch4Train=oData.GetBranch4Train()
-    resize=(1,17,17)
-
-    setTrain=DataSet(homeCSV,listCSV=listCSV4Train,labels=labels,numClasses=numClasses,branch4Train=branch4Train,resize=resize,numProcess=numProcess)
-
-    setTrain.ReadSet()
-
-    setTrain.ReadGet(numItemKept=1000000)
-
-
-    import torch
-    trainLoader = torch.utils.data.DataLoader(setTrain, batch_size=4,
-                                          shuffle=True, num_workers=1)
-
-    dataiter = iter(trainLoader)
-    iData, iLabel, iUid = dataiter.next()
-
-    print(iData),print(iLabel),print(iUid)
-    print(iData.shape,iLabel.shape,iUid.shape)
 
 
 

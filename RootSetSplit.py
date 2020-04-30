@@ -161,6 +161,9 @@ class RootSetSplit():
     def GetHomeCSV(self):
         return self.folderCSVTrain,self.folderCSVTest
 
+    def GetHomeRoot(self):
+        return self.folderTrain,self.folderTest
+
     def RootLn(self):
         '''
         Soft link from homeRoot to homeData

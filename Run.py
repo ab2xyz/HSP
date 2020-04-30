@@ -5,28 +5,34 @@ from RootSetSplit import RootSetSplit
 from Root2CSV import Root2CSV
 from Channel2Label import Channel2Label
 from Branch4Train import Branch4Train
+from DataSet import DataSet
 
 ## Step 1.
+## RootSetSplit
+## Get Train/Test  and CSV/Root
 
 homeRoot='/home/i/iWork/data/root'
 homeData='/home/i/IGSI/data/data'
-channels=None
+channels='45'
 train=0.7
 
 oRootSetSplit=RootSetSplit(homeRoot=homeRoot, homeData=homeData, channels=channels,train=train)
 homeCSVTrain,homeCSVTest=oRootSetSplit.GetHomeCSV()
+homeRootTrain,homeRootTest=oRootSetSplit.GetHomeRoot()
 
 ## Step 2.
 ## Channel
+## No Run
 
 ## Step3.
 ## Root2CSV
+## Double Run :  Train / Test
 
 numEventPerFile=1024
 numProcess=10
 
 
-oRoot2CSVTrain=Root2CSV(homeRoot=homeRoot,
+oRoot2CSVTrain=Root2CSV(homeRoot=homeRootTrain,
         homeCSV=homeCSVTrain,
         channels=channels,
         numEventPerFile=numEventPerFile,
@@ -38,7 +44,7 @@ checkRoot2CSVTrain=oRoot2CSVTrain.Check2Finish(timeSecondDelta=10,timeSecondTota
 
 
 
-oRoot2CSVTest=Root2CSV(homeRoot=homeRoot,
+oRoot2CSVTest=Root2CSV(homeRoot=homeRootTest,
         homeCSV=homeCSVTest,
         channels=channels,
         numEventPerFile=numEventPerFile,
@@ -46,12 +52,13 @@ oRoot2CSVTest=Root2CSV(homeRoot=homeRoot,
 
 
 oRoot2CSVTest.ReRun()
-checkRoot2CSVTest=oRoot2CSVTest.Check2Finish(timeSecondDelta=1,timeSecondTotal=7200,label='oRoot2CSVTest')
+checkRoot2CSVTest=oRoot2CSVTest.Check2Finish(timeSecondDelta=10,timeSecondTotal=7200,label='oRoot2CSVTest')
 
 
 
 ## Step 4
 ## Channel2Label
+## Single Run :  homeCSVTrain
 
 oChannel2Label=Channel2Label(homeCSV=homeCSVTrain,channels=channels)
 channel2Label=oChannel2Label.GetChannel2Label()
@@ -60,21 +67,44 @@ numClass=oChannel2Label.GetNumClass()
 
 ## Step 5
 ## Branch
+## Single Run  :homeCSVTrain
 oBranch4Train=Branch4Train(homeCSV=homeCSVTrain,channels=channels)
 branch4Train=oBranch4Train.Branch4Train()
 
 
 ## Step 6
 ## DataSet
-# setTrain=DataSet(homeCSV=homeCSVTrain,
-#                  channels=channels,
-#                  channel2Label=channel2Label,
-#                  numClasses=numClasses,
-#                  branch4Train=branch4Train,
-#                  resize=resize,
-#                  numProcess=numProcess)
+## Double Run : Train / Test
+numItemKeep=5e5
+resize=[232]
+
+setTrain=DataSet(homeCSV=homeCSVTrain,
+                 channels=channels,
+                 channel2Label=channel2Label,
+                 numClass=numClass,
+                 branch4Train=branch4Train,
+                 resize=resize)
+
+setTrain.ReadTrainSet()
+setTrain.ReadTrainGet(numItemKeep=numItemKeep)
 
 
+
+
+setTest=DataSet(homeCSV=homeCSVTest,
+                 channels=channels,
+                 channel2Label=channel2Label,
+                 numClass=numClass,
+                 branch4Train=branch4Train,
+                 resize=resize)
+
+# setTest.ReadTestSet(channels=['T08_DPM_45'],numCSV=0)
+# setTest.ReadTestGet()
+setTest.ReadTest(channels=['T08_DPM_45'],numCSV=0,numProcess=12)
+
+
+## Step 7
+## NN
 
 ## Step 7
 ## Train
