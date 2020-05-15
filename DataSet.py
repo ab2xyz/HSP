@@ -23,7 +23,6 @@ from random import  choice
 from multiprocessing import Pool,Process,Queue
 
 from Channel import  Channel
-from Data import Data
 
 
 
@@ -44,6 +43,12 @@ class DataSet(Dataset,Channel):
         self.ProbInit()
         self.channel_csv={}
         self.branchSel={}
+
+        self.data=np.array([0])
+        self.label=np.array([0])
+        self.uid=np.array([0])
+
+        self.flagInit=0
 
 
 
@@ -192,12 +197,17 @@ class DataSet(Dataset,Channel):
         uid=np.concatenate(uidList,axis=0)
 
 
-        if not hasattr(self,'data'):
+        # if not hasattr(self,'data'):
+        if self.flagInit ==0 :
+            self.flagInit+=1
+
             self.data=data
             self.label=label
             self.uid=uid
 
         else:
+            self.flagInit+=1
+
             if numItemKeep<=0:
                 self.data=data
                 self.label=label
@@ -314,7 +324,7 @@ class DataSet(Dataset,Channel):
 
     def __getitem__(self,idx):
 
-        return (self.data[idx,:],self.label[idx,:],self.uid[idx,:])
+        return (self.data[idx,:],self.label[idx],self.uid[idx])
 
 
 if __name__=='__main__':

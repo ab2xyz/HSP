@@ -12,24 +12,15 @@ import matplotlib.pyplot as plt
 
 
 
-class Train():
-    def __init__(self,
-                 NN,
-                 setTrain,
-                 setTest,
-                 batchSize=1024,
-                 numProcess=6,
-                 cuda=True,
-                 criterion = nn.CrossEntropyLoss(),
-                 optimizer = optim.Adam):
 
+
+
+class Train():
+    def __init__(self,NN,setTrain,setTest,setValid=None, batchSize=32,numProcessor=6,criterion = nn.CrossEntropyLoss(),optimizer = optim.Adam,cuda=True):
         self.NN=NN
         self.setTrain=setTrain
         self.setTest=setTest
-
-        self.batchSize=batchSize
-        self.numProcess=numProcess
-
+        self.setValid=setValid
         self.criterion=criterion
         self.optimizer=optimizer
         self.opti=self.optimizer(self.NN.parameters(),weight_decay=1e-4)
@@ -38,22 +29,20 @@ class Train():
         if self.cuda:
             self.NN.cuda()
 
+        self.batchSize=batchSize
+        self.numProcessor=numProcessor
 
 
-    def Train(self,numEpoch=10,homeRes='',codeSave='',numItemKeep=5e6):
 
-        self.setTrain.ReadTrainSet()
-        self.setTest.ReadTrainSet()
+    def Train(self,numEpoch,homeRes='',codeSave='',numItemKept=5e6):
+
         lossRecTrain=[]
         lossRecTest=[]
         for epoch in tqdm(range(numEpoch)):
 
-            self.setTrain.ReadTrainGet(numItemKeep=numItemKeep)
+            loaderTrain = torch.utils.data.DataLoader(self.setTrain, batch_size=batchSize,  shuffle=True, num_workers=self.numProcessor)
 
-            loaderTrain = torch.utils.data.DataLoader(self.setTrain, batch_size=self.batchSize,  shuffle=True, num_workers=self.numProcess)
-
-            if epoch<numEpoch-1:
-                self.setTrain.ReadTrainSet()
+            self.setTrain.ReadSet()
 
             self.NN.train()
             lossTrain=0.
@@ -83,16 +72,17 @@ class Train():
 
             lossRecTrain.append(lossTrain/(i+1))
 
+            self.setTrain.ReadGet(numItemKept=numItemKept)
+
+
 
             ##
             self.NN.eval()
 
-            self.setTest.ReadTrainGet(numItemKeep=0)
 
-            loaderTest = torch.utils.data.DataLoader(self.setTest, batch_size=self.batchSize,  shuffle=False, num_workers=self.numProcess)
+            loaderTest = torch.utils.data.DataLoader(self.setTest, batch_size=batchSize,  shuffle=False, num_workers=self.numProcessor)
 
-            if epoch<numEpoch-1:
-                self.setTest.ReadTrainSet()
+            self.setTest.ReadSet()
 
             lossTest=0.
             for i, data in enumerate(loaderTest,0):
@@ -121,7 +111,7 @@ class Train():
 
             lossRecTest.append(lossTest/(i+1))
 
-
+            self.setTest.ReadGet(numItemKept=0)
 
 
             homeRes=homeRes if homeRes.strip()[-1]=='/' else homeRes+'/'
@@ -129,7 +119,7 @@ class Train():
             torch.save(self.NN.state_dict(), pathSaveNN)
             pathSaveResize=homeRes+'Resize'+codeSave+'.dat'
             with open(pathSaveResize,'w') as f:
-                [f.writelines('%d '%x) for x in self.setTrain.resize]
+                [f.writelines('%d '%x) for x in setTrain.resize]
 
             plt.figure('loss',figsize=(14,8))
             plt.clf()
@@ -152,6 +142,60 @@ class Train():
 
 if __name__=='__main__':
 
+
+    from Data import Data
+    from DataSet import DataSet
+
+    homeCSV='/home/i/iWork/data/csv'
+    homeRes='/home/i/iWork/data/res'
+    numProcess=10
+    channels='45'
+    # channels=['T06_T06_45_Dch','T06_DPM_45','T06_T05_45_D0']
+
+    oData=Data(homeCSV,channels=channels,ratioSetTrain=0.7,ratioSetTest=0.3,ratioSetValid=0.)
+
+    codeSave=oData.Write(homeRes)
+    print(codeSave)
+
+    listCSV4Test=oData.GetListCSV4Test()
+    listCSV4Valid=oData.GetListCSV4Valid()
+    listCSV4Train=oData.GetListCSV4Train()
+
+
+    labels=oData.GetLabels()
+    numClasses=oData.GetNumClasses()
+    print(numClasses)
+    branch4Train=oData.GetBranch4Train()
+    resize=[240]
+
+
+    setTrain=DataSet(homeCSV,listCSV=listCSV4Train,labels=labels,numClasses=numClasses,branch4Train=branch4Train,resize=resize,numProcess=numProcess)
+    setTest=DataSet(homeCSV,listCSV=listCSV4Test,labels=labels,numClasses=numClasses,branch4Train=branch4Train,resize=resize,numProcess=numProcess)
+
+
+    numEpoch=300
+    from DNN import NN
+    Net=NN(numClasses)
+    setValid=None
+    batchSize=1024*16
+    numProcessor=6
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam
+    cuda=True
+
+    oTrain=Train(NN=Net,
+                 setTrain=setTrain,
+                 setTest=setTest,
+                 setValid=setValid,
+                 batchSize=batchSize,
+                 numProcessor=numProcessor,
+                 criterion = criterion,
+                 optimizer = optimizer,
+                 cuda=cuda)
+
+    numItemKept=5e6
+
+    oTrain.Train(numEpoch=numEpoch,homeRes=homeRes,codeSave=codeSave,numItemKept=numItemKept)
 
 
     plt.show()

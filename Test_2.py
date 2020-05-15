@@ -26,25 +26,19 @@ class Test():
         self.homeRes=homeRes if homeRes.strip()[-1]=='/' else homeRes+'/'
 
         self.NN=NN
+        self.setTestBlock=setTest
         self.batchSize=batchSize
         self.numProcess=numProcess
         self.cuda=cuda
+
+        self.channels=self.setTestBlock.channels
+        self.channel2Label=self.setTestBlock.channel2Label
+
+        self.setTest={}
+        for iChannel in self.channels:
+            self.setTest[iChannel]=deepcopy(self.setTestBlock)
+
         self.softmax=torch.nn.Softmax(dim=1)
-
-
-        # self.setTestBlock=setTest
-        # self.channels=self.setTestBlock.channels
-        # self.channel2Label=self.setTestBlock.channel2Label
-        #
-        # self.setTest={}
-        # for iChannel in self.channels:
-        #     self.setTest[iChannel]=deepcopy(self.setTestBlock)
-
-
-        self.setTest=setTest
-        self.channels=list(self.setTest.values())[0].channels
-        self.channel2Label=list(self.setTest.values())[0].channel2Label
-
 
 
 
@@ -70,11 +64,9 @@ class Test():
             self.setTest[iChannel].ReadTest(channels=[iChannel],numCSV=numCSVReadPerChannel,numProcess=self.numProcess)
 
     def RunNN(self,):
-        print('RunNN')
-
         self.NNLoad()
 
-        for iChannel in tqdm(self.channels):
+        for iChannel in self.channels:
 
             setTest=self.setTest[iChannel]
             loader=torch.utils.data.DataLoader(setTest, batch_size=self.batchSize,  shuffle=False, num_workers=self.numProcess)
@@ -113,11 +105,9 @@ class Test():
 
 
     def GetCuts(self,effiBkgTarget):
-        print('GetCuts')
-
         self.trigger_cut={}
         self.trigger_label={}
-        for iChannel in tqdm(self.channels):
+        for iChannel in self.channels:
             iSplit=iChannel.split('_')
             if iSplit[0]==iSplit[1]:
                 channelSig=iChannel
@@ -127,13 +117,11 @@ class Test():
 
             channelBkg=None
             for jChannel in self.channels:
-                if ('DPM' in jChannel) and (jChannel[:jChannel.find('_')]==trigger):
+                if 'DPM' in jChannel:
                     channelBkg=jChannel
                     break
             if channelBkg is None:
                 continue
-
-            # print(channelSig,channelBkg)
 
             effiBkgReconstruction=self.ReadRunLog2GetEffi(channelBkg)
             effiBkgReconstruction4Cut=(1-effiBkgTarget)/effiBkgReconstruction
@@ -170,12 +158,7 @@ class Test():
             if idxCut<0:
                 idxCut=0
 
-
-
-
             iCut=bkgSort[idxCut]    # sig>cut  ! ! !
-
-            # print(idxCut,iCut)
 
             self.trigger_cut[trigger]=iCut
             self.trigger_label[trigger]=labelSig
@@ -184,112 +167,59 @@ class Test():
         with open(cutLog,'w') as f:
             f.writelines('trigger   :   lable  :   cut\n')
             for iTrigger in self.trigger_cut:
-                f.writelines('%s   :   %d    :  %.8f\n'%(iTrigger,self.trigger_label[iTrigger],self.trigger_cut[iTrigger]))
+                f.writelines('%s   :   %d    :  %.8f\n'%(iTrigger,self.trigger_label[iTrigger],self.trigger_cut[trigger]))
 
 
         return self.trigger_cut,self.trigger_label
 
 
     def GetTable(self):
-        print('GetTable')
-        self.effiReconstruction={}
-        self.effiTriggerReconstruction={}
-        self.effiTriggerRaw={}
-        for iChannel in tqdm(self.channels):
+        self.channel_effi_Recon={}
+        for iChannel in self.channels:
             iSplit=iChannel.split('_')
             trigger=iSplit[0]
             iLabel=self.trigger_label[trigger]
             iCut=self.trigger_cut[trigger]
+            if not 'DMP' in iChannel:
+                outputs=self.outputsNN[iChannel][:,iLabel]
+                uids=self.uids[iChannel]
+                uidsUnique=np.unique(uids)
+                uidsUniqueLen=len(uidsUnique)
 
+                uidsPositive=(outputs>iCut).astype(int)*uids
+                uidsPositiveUnique=np.unique(uidsPositive)
+                uidsPositiveUniqueLen=len(uidsPositiveUnique)-1 if 0 in uidsPositiveUnique else len(uidsPositiveUnique)
+                self.channel_effi_Recon[iChannel]=uidsPositiveUniqueLen/uidsUniqueLen
 
-            outputs=self.outputsNN[iChannel][:,iLabel]
-            uids=self.uids[iChannel]
-            uidsUnique=np.unique(uids)
-            uidsUniqueLen=len(uidsUnique)
-
-            uidsPositive=(outputs>iCut).astype(int)*uids
-            uidsPositiveUnique=np.unique(uidsPositive)
-            uidsPositiveUniqueLen=len(uidsPositiveUnique)-1 if 0 in uidsPositiveUnique else len(uidsPositiveUnique)
-            self.effiTriggerReconstruction[iChannel]=uidsPositiveUniqueLen/uidsUniqueLen
-
-            self.effiReconstruction[iChannel]=self.ReadRunLog2GetEffi(iChannel)
-            self.effiTriggerRaw[iChannel]=self.effiTriggerReconstruction[iChannel]*self.effiReconstruction[iChannel]
-
-        effiLog=self.homeRes+'effi'+self.codeSave+'.log'
-        with open(effiLog,'w') as f:
-            f.writelines('%-30s %-30s %-30s %-30s\n'%('channel','effiReconstruction', 'effiTriggerReconstruction', 'effiTriggerRaw'))
-            for iChannel in self.channels:
-                f.writelines('%-30s      %-20.10f    %-20.10f    %-20.10f\n'%(iChannel,self.effiReconstruction[iChannel],self.effiTriggerReconstruction[iChannel],self.effiTriggerRaw[iChannel]))
-
-
-    def GetDPMPerformance(self):
-        print('GetDPMPerformance')
-        self.effiDPM={}
-
-        self.channelsDPM=[]
-        for iChannel in self.channels:
             if 'DPM' in iChannel:
-                iChannelDPM=iChannel[iChannel.find('_')+1:]
-                if not iChannelDPM  in self.channelsDPM:
-                    self.channelsDPM.append(iChannelDPM)
-        self.channelsDPM.sort()
-
-        for iChannelDPM in tqdm(self.channelsDPM):
-
-            uidsUniqueLen=None
-            uidsPositiveUnique=None
-            for iChannel in self.channels:
-                if not iChannelDPM in iChannel:
-                    continue
-
-                iSplit=iChannel.split('_')
-                trigger=iSplit[0]
-                iLabel=self.trigger_label[trigger]
-                iCut=self.trigger_cut[trigger]
 
                 uids=self.uids[iChannel]
-                if uidsUniqueLen is None:
-                    uidsUniqueLen=self.ReadRunLog2GetNumEventMC(iChannel)
+                uidsUnique=np.unique(uids)
+                uidsUniqueLen=len(uidsUnique)
 
-                iOutputs=self.outputsNN[iChannel][:,iLabel]
-                iUidsPositive=(iOutputs>iCut).astype(int)*uids
-                iUidsPositiveUnique=np.unique(iUidsPositive)
+                uidsPositiveUnique=None
+                for iTrigger in self.trigger_label:
+                    iLabel=self.trigger_label[iTrigger]
+                    iCut=self.trigger_cut[iTrigger]
 
-                if uidsPositiveUnique is None:
-                    uidsPositiveUnique=iUidsPositive
-                else:
-                    uidsPositiveUnique=np.r_[uidsPositiveUnique,iUidsPositive]
-                    uidsPositiveUnique=np.unique(uidsPositiveUnique)
+                    iOutputs=self.outputsNN[iChannel][:,iLabel]
+                    iUidsPositive=(iOutputs>iCut).astype(int)*uids
+                    iUidsPositive=np.unique(iUidsPositive)
 
-            uidsPositiveUnique=uidsPositiveUnique[uidsPositiveUnique!=0]
+                    if uidsPositiveUnique is None:
+                        uidsPositiveUnique=iUidsPositive
+                    else:
+                        uidsPositiveUnique=np.r_[uidsPositiveUnique,iUidsPositive]
+                    uidsPositiveUnique=np.unique(uidsPositive)
 
-            uidsPositiveUniqueLen=len(uidsPositiveUnique)
-            self.effiDPM[iChannelDPM]=uidsPositiveUniqueLen/uidsUniqueLen
-
-        dpmLog=self.homeRes+'effiDPM'+self.codeSave+'.log'
-        with open(dpmLog,'w') as f:
-            for iChannelDPM in self.effiDPM:
-                f.writelines('%s\n'%iChannelDPM)
-                f.writelines('%s :  %.6f \n'%('Effi',self.effiDPM[iChannelDPM]))
-                f.writelines('%s  :  %d \n'%('numEventMC',uidsUniqueLen))
-                f.writelines('%s  :  %d \n'%('FalsePositive (Uids below)',uidsPositiveUniqueLen))
-                [f.writelines('%s '%x) for x in uidsPositiveUnique]
-                f.writelines('\n'+'-'*80+'\n')
+                uidsPositiveUniqueLen=len(uidsPositiveUnique)-1 if 0 in uidsPositiveUnique else len(uidsPositiveUnique)
+                self.channel_effi_Recon[iChannel]=uidsPositiveUniqueLen/uidsUniqueLen
 
 
-
-
-
-    def ReadRunLog2GetNumEventMC(self,iChannel):
-        iLog=self.homeCSV+iChannel+'/runLog'
-        with open(iLog,'r') as f:
-            while True:
-                fLine=f.readline()
-                if ('numEventMC' in fLine) and ('numEventMC_PID' not in fLine):
-                    iEff=float(fLine.split(':')[1])
-                    break
-            return iEff
-
+        effLog=self.homeRes+'effi'+self.codeSave+'.log'
+        with open(effLog,'w') as f:
+            f.writelines('channel  :  effiRecons\n')
+            [f.writelines('%s  :  %.8f\n'%(x,y)) for x,y in self.channel_effi_Recon.items()]
 
 
     def ReadRunLog2GetEffi(self,iChannel):

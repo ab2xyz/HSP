@@ -1,20 +1,34 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import matplotlib.pyplot as plt
+
+from Root2Channel import Root2Channel
 from RootSetSplit import RootSetSplit
 from Root2CSV import Root2CSV
 from Channel2Label import Channel2Label
 from Branch4Train import Branch4Train
 from DataSet import DataSet
+from NN import DNN,ResDNN
+from Train import  Train
+from Test import Test
+
+
+
+## Step 0.
+## Root2Channel
+## Get Train/Test  and CSV/Root
+homeRoot='/home/i/IGSI/data/root'
+oRoot2Channel=Root2Channel(homeRoot=homeRoot)
 
 ## Step 1.
 ## RootSetSplit
 ## Get Train/Test  and CSV/Root
 
-homeRoot='/home/i/iWork/data/root'
 homeData='/home/i/IGSI/data/data'
 channels='45'
-train=0.7
+# channels=['T06_DPM_45','T06_T06_45_Dch']
+train=0.8
 
 oRootSetSplit=RootSetSplit(homeRoot=homeRoot, homeData=homeData, channels=channels,train=train)
 homeCSVTrain,homeCSVTest=oRootSetSplit.GetHomeCSV()
@@ -29,7 +43,7 @@ homeRootTrain,homeRootTest=oRootSetSplit.GetHomeRoot()
 ## Double Run :  Train / Test
 
 numEventPerFile=1024
-numProcess=10
+numProcess=4
 
 
 oRoot2CSVTrain=Root2CSV(homeRoot=homeRootTrain,
@@ -85,8 +99,8 @@ setTrain=DataSet(homeCSV=homeCSVTrain,
                  branch4Train=branch4Train,
                  resize=resize)
 
-setTrain.ReadTrainSet()
-setTrain.ReadTrainGet(numItemKeep=numItemKeep)
+# setTrain.ReadTrainSet()
+# setTrain.ReadTrainGet(numItemKeep=numItemKeep)
 
 
 
@@ -98,24 +112,79 @@ setTest=DataSet(homeCSV=homeCSVTest,
                  branch4Train=branch4Train,
                  resize=resize)
 
-# setTest.ReadTestSet(channels=['T08_DPM_45'],numCSV=2)
-# setTest.ReadTestGet()
-setTest.ReadTest(channels=['T08_DPM_45'],numCSV=0,numProcess=numProcess)
+# # setTest.ReadTestSet(channels=['T08_DPM_45'],numCSV=2)
+# # setTest.ReadTestGet()
+# setTest.ReadTest(channels=['T08_DPM_45'],numCSV=0,numProcess=numProcess)
 
 
 ## Step 7
 ## NN
+oDNN=DNN(resize[0],numClass)
+oResDNN=ResDNN(resize[0],numClass)
+
+oNN=oDNN
 
 
 ## Step 7
 ## Train
+## Single Run : Train
+
+batchSize=1024*8
+cuda=True
+
+numEpoch=10000
+homeRes='/home/i/IGSI/data/res'
+codeSave='DNN_NewData'
+numItemKeep=5e6
+
+
+oTrain=Train(NN=oNN,
+                 setTrain=setTrain,
+                 setTest=setTest,
+                 batchSize=batchSize,
+                 numProcess=numProcess,
+                 cuda=cuda)
+
+# oTrain.Train(numEpoch=numEpoch,homeRes=homeRes,codeSave=codeSave,numItemKeep=numItemKeep)
+
+
+
 
 ## Step 8
 ## Test
+numCSVReadPerChannel=0
+effiBkgTarget=0.999
+
+setTest=dict(zip(list(channel2Label.keys()),[DataSet(homeCSV=homeCSVTest,
+                 channels=channels,
+                 channel2Label=channel2Label,
+                 numClass=numClass,
+                 branch4Train=branch4Train,
+                 resize=resize) for i in range(len(channel2Label))]))
+
+oTest=Test(homeCSV=homeCSVTest,
+           homeRes=homeRes,
+            NN=oNN,
+            setTest=setTest,
+            codeSave=codeSave,
+            batchSize=batchSize,
+            numProcess=numProcess,
+            cuda=cuda)
+
+oTest.ReadCSV(numCSVReadPerChannel=numCSVReadPerChannel)
+oTest.RunNN()
+
+oTest.GetCuts(effiBkgTarget=effiBkgTarget)
+oTest.GetTable()
+
+oTest.GetDPMPerformance()
 
 
 
 
+
+
+plt.show()
 print('END')
 
 
