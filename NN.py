@@ -42,6 +42,67 @@ class DNN(nn.Module):
 
 
 
+# Residual block
+class ResidualDNNBlock(nn.Module):
+    def __init__(self, numNeuronPerLayer):
+        super(ResidualDNNBlock, self).__init__()
+
+        self.linear1 = nn.Linear(numNeuronPerLayer,numNeuronPerLayer)
+        self.bn1 = nn.BatchNorm1d(numNeuronPerLayer)
+        self.relu = nn.ReLU(inplace=True)
+        self.linear2 = nn.Linear(numNeuronPerLayer,numNeuronPerLayer)
+        self.bn2 = nn.BatchNorm1d(numNeuronPerLayer)
+
+
+    def forward(self, x):
+        residual = x
+        out = self.linear1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.linear2(out)
+        out = self.bn2(out)
+
+        out += residual
+        out = self.relu(out)
+        return out
+
+
+
+
+# ResidualDNNBlock
+class ResidualDNN(nn.Module):
+    def __init__(self, block=ResidualDNNBlock,numBlocks=10, numInput=232, numClass=34):
+        super(ResidualDNN, self).__init__()
+
+
+        self.linear = nn.Linear(numInput,numInput)
+        self.bn = nn.BatchNorm1d(numInput)
+        self.relu = nn.ReLU(inplace=True)
+        self.layerBlock = self.makeLayer(block, numBlocks, numInput)
+
+        self.fc = nn.Linear(numInput, numClass)
+
+    def makeLayer(self, block, numBlocks, numNeuronPerLayer):
+        layers = []
+        for i in range(numBlocks):
+            layers.append(block(numNeuronPerLayer))
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        out = self.linear(x)
+        out = self.bn(out)
+        out = self.relu(out)
+        out = self.layerBlock(out)
+        out = self.fc(out)
+        return out
+
+
+
+
+
+
+
+
 class ResDNN(nn.Module):
     def __init__(self,numInput=232, numClass=34):
         super(ResDNN, self).__init__()

@@ -9,9 +9,10 @@ from Root2CSV import Root2CSV
 from Channel2Label import Channel2Label
 from Branch4Train import Branch4Train
 from DataSet import DataSet
-from NN import DNN,ResDNN
+from NN import DNN,ResDNN,ResidualDNNBlock,ResidualDNN
 from Train import  Train
 from Test import Test
+from Post import WriteEffi2CSV
 
 
 
@@ -121,8 +122,9 @@ setTest=DataSet(homeCSV=homeCSVTest,
 ## NN
 oDNN=DNN(resize[0],numClass)
 oResDNN=ResDNN(resize[0],numClass)
+oResidualDNN=ResidualDNN(block=ResidualDNNBlock,numBlocks=10, numInput=resize[0], numClass=numClass)
 
-oNN=oDNN
+oNN=oResidualDNN
 
 
 ## Step 7
@@ -134,7 +136,7 @@ cuda=True
 
 numEpoch=10000
 homeRes='/home/i/IGSI/data/res'
-codeSave='DNN_NewData'
+codeSave='ResDNN_NewData'
 numItemKeep=5e6
 
 
@@ -180,6 +182,10 @@ oTest.GetTable()
 oTest.GetDPMPerformance()
 
 
+
+## Step 9
+## Post
+WriteEffi2CSV(homeRes=homeRes,codeSave=codeSave)
 
 
 

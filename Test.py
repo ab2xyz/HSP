@@ -15,6 +15,7 @@ from tqdm import  tqdm
 # from multiprocessing import Pool
 
 from copy import deepcopy
+import os
 
 
 class Test():
@@ -24,6 +25,8 @@ class Test():
 
         self.codeSave=codeSave
         self.homeRes=homeRes if homeRes.strip()[-1]=='/' else homeRes+'/'
+        self.homeRes=self.homeRes+codeSave+'/'
+        os.makedirs(self.homeRes,exist_ok=True)
 
         self.NN=NN
         self.batchSize=batchSize

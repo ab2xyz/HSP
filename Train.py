@@ -9,6 +9,7 @@ import torch.optim as optim
 import torch.nn as nn
 from tqdm import  tqdm
 import matplotlib.pyplot as plt
+import os
 
 
 
@@ -41,6 +42,10 @@ class Train():
 
 
     def Train(self,numEpoch=10,homeRes='',codeSave='',numItemKeep=5e6):
+
+        homeRes=homeRes if homeRes.strip()[-1]=='/' else homeRes+'/'
+        homeRes=homeRes+codeSave+'/'
+        os.makedirs(homeRes,exist_ok=True)
 
         self.setTrain.ReadTrainSet()
         self.setTest.ReadTrainSet()
@@ -124,7 +129,8 @@ class Train():
 
 
 
-            homeRes=homeRes if homeRes.strip()[-1]=='/' else homeRes+'/'
+
+
             pathSaveNN=homeRes+'NN'+codeSave+'.plt'
             torch.save(self.NN.state_dict(), pathSaveNN)
             pathSaveResize=homeRes+'Resize'+codeSave+'.dat'
