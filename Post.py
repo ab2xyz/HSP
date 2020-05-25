@@ -76,7 +76,7 @@ def WriteEffi2CSV(homeRes,codeSave):
 
 if __name__=='__main__':
     homeRes='/home/i/IGSI/data/res'
-    codeSave='DNN_NewData'
+    codeSave='DNNTestBN'
     WriteEffi2CSV(homeRes=homeRes,codeSave=codeSave)
 
 

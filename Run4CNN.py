@@ -9,7 +9,7 @@ from Root2CSV import Root2CSV
 from Channel2Label import Channel2Label
 from Branch4Train import Branch4Train
 from DataSet import DataSet
-from NN import DNN_BN, DNN_Dropout, DNN_Res_Manual,Res_DNN_Block,Res_DNN
+from NN import DNN_BN, DNN_Dropout, DNN_Res_Manual,Res_DNN_Block,Res_DNN, CNN
 from Train import  Train
 from Test import Test
 from Post import WriteEffi2CSV
@@ -91,7 +91,7 @@ branch4Train=oBranch4Train.Branch4Train()
 ## DataSet
 ## Double Run : Train / Test
 numItemKeep=5e5
-resize=[232]
+resize=[1,17,17]
 
 setTrain=DataSet(homeCSV=homeCSVTrain,
                  channels=channels,
@@ -132,8 +132,9 @@ setTest=DataSet(homeCSV=homeCSVTest,
 
 #DNN_BN, DNN_Dropout, DNN_Res_Manual,Res_DNN_Block,
 oRes_DNN=Res_DNN(block=Res_DNN_Block,numBlocks=10, numInput=resize[0], numClass=numClass)
+oCNN=CNN(resize,numClass)
 
-oNN=oRes_DNN
+oNN=oCNN
 
 
 ## Step 7
@@ -145,7 +146,7 @@ cuda=True
 
 numEpoch=10000
 homeRes='/home/i/IGSI/data/res'
-codeSave='oRes_DNN'
+codeSave='CNN'
 
 numItemKeep=5e6
 

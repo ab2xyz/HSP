@@ -151,7 +151,7 @@ class Train():
             plt.grid()
             plt.legend(loc='best')
 
-            plt.pause(0.02)
+            plt.pause(0.01)
 
 
 

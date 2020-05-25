@@ -9,7 +9,7 @@ from Root2CSV import Root2CSV
 from Channel2Label import Channel2Label
 from Branch4Train import Branch4Train
 from DataSet import DataSet
-from NN import DNN_BN, DNN_Dropout, DNN_Res_Manual,Res_DNN_Block,Res_DNN
+from NN import DNN,ResDNN,ResidualDNNBlock,ResidualDNN,DNNTestBN
 from Train import  Train
 from Test import Test
 from Post import WriteEffi2CSV
@@ -107,11 +107,11 @@ setTrain=DataSet(homeCSV=homeCSVTrain,
 
 
 setTest=DataSet(homeCSV=homeCSVTest,
-                 channels=channels,
-                 channel2Label=channel2Label,
-                 numClass=numClass,
-                 branch4Train=branch4Train,
-                 resize=resize)
+                  channels=channels,
+                  channel2Label=channel2Label,
+                  numClass=numClass,
+                  branch4Train=branch4Train,
+                  resize=resize)
 
 
 # # setTest.ReadTestSet(channels=['T08_DPM_45'],numCSV=2)
@@ -121,31 +121,29 @@ setTest=DataSet(homeCSV=homeCSVTest,
 
 ## Step 7
 ## NN
-# oDNN=DNN(resize[0],numClass)
-#
-# oDNNTestBN=DNNTestBN(resize[0],numClass)
-#
-# oResidualDNN=ResidualDNN(block=ResidualDNNBlock,numBlocks=10, numInput=resize[0], numClass=numClass)
-#
-# oResDNN=ResDNN(resize[0],numClass)
+oDNN=DNN(resize[0],numClass)
 
+oDNNTestBN=DNNTestBN(resize[0],numClass)
 
-#DNN_BN, DNN_Dropout, DNN_Res_Manual,Res_DNN_Block,
-oRes_DNN=Res_DNN(block=Res_DNN_Block,numBlocks=10, numInput=resize[0], numClass=numClass)
+oResidualDNN=ResidualDNN(block=ResidualDNNBlock,numBlocks=10, numInput=resize[0], numClass=numClass)
 
-oNN=oRes_DNN
+oResDNN=ResDNN(resize[0],numClass)
+
+oNN=oResDNN
 
 
 ## Step 7
 ## Train
 ## Single Run : Train
 
-batchSize=512*4
+batchSize=512
 cuda=True
 
 numEpoch=10000
 homeRes='/home/i/IGSI/data/res'
-codeSave='oRes_DNN'
+codeSave='ResDNN_NewData_batchSize512_3'
+codeSave='DNNTestBN2'
+codeSave='ResDNN_Block_2'
 
 numItemKeep=5e6
 

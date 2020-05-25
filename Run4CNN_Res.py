@@ -9,7 +9,7 @@ from Root2CSV import Root2CSV
 from Channel2Label import Channel2Label
 from Branch4Train import Branch4Train
 from DataSet import DataSet
-from NN import DNN_BN, DNN_Dropout, DNN_Res_Manual,Res_DNN_Block,Res_DNN
+from NN import DNN_BN, DNN_Dropout, DNN_Res_Manual,Res_DNN_Block,Res_DNN, CNN, CNN_BN,Res_CNN_Block,Res_CNN, LSTM1D, LSTM2D
 from Train import  Train
 from Test import Test
 from Post import WriteEffi2CSV
@@ -27,7 +27,7 @@ oRoot2Channel=Root2Channel(homeRoot=homeRoot)
 ## Get Train/Test  and CSV/Root
 
 homeData='/home/i/IGSI/data/data'
-channels='45'
+channels='55'
 # channels=['T06_DPM_45','T06_T06_45_Dch']
 train=0.8
 
@@ -91,7 +91,10 @@ branch4Train=oBranch4Train.Branch4Train()
 ## DataSet
 ## Double Run : Train / Test
 numItemKeep=5e5
+# resize=[1,17,17]
 resize=[232]
+# resize=[17,17]
+
 
 setTrain=DataSet(homeCSV=homeCSVTrain,
                  channels=channels,
@@ -132,8 +135,15 @@ setTest=DataSet(homeCSV=homeCSVTest,
 
 #DNN_BN, DNN_Dropout, DNN_Res_Manual,Res_DNN_Block,
 oRes_DNN=Res_DNN(block=Res_DNN_Block,numBlocks=10, numInput=resize[0], numClass=numClass)
+oCNN=CNN(resize,numClass)
+oCNN_BN=CNN_BN(resize,numClass)
+oRes_CNN=Res_CNN(block=Res_CNN_Block,numBlocks=10, shapeInput=resize, numClass=numClass,inPlanes=8,outPlanes=8)
+oRes_LSTM1D=LSTM1D(seqIn=resize[0], hidden_size=80, seqOut=numClass, num_layers=2)
+# oRes_LSTM2D=LSTM2D(seqIn=resize, hidden_size=16, seqOut=numClass, num_layers=2)
+# oRes_LSTM1D_8=LSTM1D(seqIn=resize[0], hidden_size=80, seqOut=numClass, num_layers=8)
+# oRes_LSTM1D_4=LSTM1D(seqIn=resize[0], hidden_size=80, seqOut=numClass, num_layers=4)
 
-oNN=oRes_DNN
+oNN=oRes_LSTM1D
 
 
 ## Step 7
@@ -145,7 +155,7 @@ cuda=True
 
 numEpoch=10000
 homeRes='/home/i/IGSI/data/res'
-codeSave='oRes_DNN'
+codeSave='LSTM1D_55'
 
 numItemKeep=5e6
 
@@ -157,7 +167,7 @@ oTrain=Train(NN=oNN,
                  numProcess=numProcess,
                  cuda=cuda)
 
-# oTrain.Train(numEpoch=numEpoch,homeRes=homeRes,codeSave=codeSave,numItemKeep=numItemKeep)
+oTrain.Train(numEpoch=numEpoch,homeRes=homeRes,codeSave=codeSave,numItemKeep=numItemKeep)
 
 
 

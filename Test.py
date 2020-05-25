@@ -76,6 +76,7 @@ class Test():
         print('RunNN')
 
         self.NNLoad()
+        self.NN.eval()
 
         for iChannel in tqdm(self.channels):
 
